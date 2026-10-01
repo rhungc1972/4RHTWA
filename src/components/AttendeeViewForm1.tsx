@@ -54,7 +54,7 @@ export const AttendeeViewForm1: React.FC<AttendeeViewForm1Props> = ({
         sessionStorage.setItem('rwa_authenticated_role', 'audience');
       } catch {}
     } else {
-      setPinError('Clave no válida. Ingrese el número del día actual indicado en la sala.');
+      setPinError('Clave no válida.');
     }
   };
 
@@ -145,9 +145,6 @@ export const AttendeeViewForm1: React.FC<AttendeeViewForm1Props> = ({
               <h2 className="text-xl sm:text-2xl font-heading font-bold text-white uppercase tracking-tight">
                 Acceso a la Simulación
               </h2>
-              <p className="text-xs text-neutral-400 font-mono-code pt-1">
-                Ingrese la clave numérica del día anunciada por Roberto en la sala.
-              </p>
             </div>
 
             <form onSubmit={handleUnlockForm1} className="space-y-4">
@@ -157,7 +154,7 @@ export const AttendeeViewForm1: React.FC<AttendeeViewForm1Props> = ({
                   inputMode="numeric"
                   pattern="[0-9]*"
                   maxLength={7}
-                  placeholder={`Clave del Día (ej. ${getDayPin()})`}
+                  placeholder="••••••"
                   value={pinInput}
                   onChange={(e) => {
                     setPinInput(e.target.value.replace(/[^0-9]/g, ''));
@@ -180,7 +177,7 @@ export const AttendeeViewForm1: React.FC<AttendeeViewForm1Props> = ({
                 disabled={!pinInput}
                 className="w-full py-3.5 px-4 bg-[#FF6105] hover:bg-[#ff7524] text-black font-heading font-bold text-sm uppercase tracking-wider rounded-xl transition-all shadow-md disabled:opacity-40 cursor-pointer flex items-center justify-center gap-2"
               >
-                <span>Desbloquear Formulario</span>
+                <span>Continuar</span>
                 <ArrowRight className="w-4 h-4" />
               </button>
             </form>
@@ -331,7 +328,7 @@ export const AttendeeViewForm1: React.FC<AttendeeViewForm1Props> = ({
               disabled={isSubmitting || selectedOption === null}
               className="w-full py-3.5 px-4 bg-[#FF6105] hover:bg-[#ff7524] text-black font-heading font-bold text-sm uppercase tracking-wider rounded-xl transition-all shadow-[0_0_20px_rgba(255,97,5,0.3)] disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer flex items-center justify-center gap-2"
             >
-              <span>{isSubmitting ? 'Registrando en Directo...' : 'Enviar Disponibilidad'}</span>
+              <span>{isSubmitting ? 'Registrando en Directo...' : 'Continuar'}</span>
               <ArrowRight className="w-4 h-4 stroke-[2.5]" />
             </button>
           </form>

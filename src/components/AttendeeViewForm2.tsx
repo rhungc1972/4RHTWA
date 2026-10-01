@@ -90,7 +90,7 @@ export const AttendeeViewForm2: React.FC<AttendeeViewForm2Props> = ({
         sessionStorage.setItem('rwa_gate_form2_unlocked', 'true');
       } catch {}
     } else {
-      setPinError(`Clave incorrecta. Introduzca el número del mes en curso indicado en la sala (Mes actual: ${getMonthPin()}).`);
+      setPinError('Clave no válida.');
     }
   };
 
@@ -178,14 +178,11 @@ export const AttendeeViewForm2: React.FC<AttendeeViewForm2Props> = ({
               <h2 className="text-2xl font-heading font-bold text-white uppercase tracking-tight">
                 Suscripción de Tokens RWA
               </h2>
-              <p className="text-xs text-neutral-400 mt-1">
-                Ingrese la clave del mes en curso ({getMonthName()}) anunciada en la sala:
-              </p>
             </div>
 
             <form onSubmit={handleUnlockForm2} className="space-y-4">
               <input
-                type="text"
+                type="password"
                 inputMode="numeric"
                 pattern="[0-9]*"
                 maxLength={7}
@@ -194,7 +191,7 @@ export const AttendeeViewForm2: React.FC<AttendeeViewForm2Props> = ({
                   setPinInput(e.target.value.replace(/[^0-9]/g, ''));
                   setPinError('');
                 }}
-                placeholder={`Clave del Mes (ej. ${getMonthPin()})`}
+                placeholder="••••••"
                 className="w-full text-center py-3.5 px-4 bg-neutral-950 border-2 border-neutral-700 focus:border-[#FF6105] rounded-xl text-2xl font-mono-code font-bold tracking-widest text-white outline-hidden placeholder:text-neutral-700"
                 autoFocus
               />
@@ -210,7 +207,7 @@ export const AttendeeViewForm2: React.FC<AttendeeViewForm2Props> = ({
                 type="submit"
                 className="w-full py-3.5 px-4 bg-[#FF6105] hover:bg-[#ff7524] text-black font-heading font-bold text-sm tracking-wider uppercase rounded-xl transition-all shadow-md cursor-pointer"
               >
-                Desbloquear Suscripción
+                Continuar
               </button>
             </form>
           </div>
@@ -334,7 +331,6 @@ export const AttendeeViewForm2: React.FC<AttendeeViewForm2Props> = ({
                     <input
                       type="number"
                       min={1}
-                      max={10000}
                       placeholder="Ej. 75 tokens"
                       value={customTokens}
                       onChange={(e) => setCustomTokens(e.target.value)}
@@ -374,7 +370,7 @@ export const AttendeeViewForm2: React.FC<AttendeeViewForm2Props> = ({
               disabled={isSubmitting || selectedTokens === null || currentTokens <= 0}
               className="w-full py-3.5 px-4 bg-[#FF6105] hover:bg-[#ff7524] text-black font-heading font-bold text-sm uppercase tracking-wider rounded-xl transition-all shadow-[0_0_20px_rgba(255,97,5,0.3)] disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer flex items-center justify-center gap-2"
             >
-              <span>{isSubmitting ? 'Registrando en Directo...' : 'Suscribir Tokens RWA'}</span>
+              <span>{isSubmitting ? 'Registrando en Directo...' : 'Continuar'}</span>
               <ArrowRight className="w-4 h-4 stroke-[2.5]" />
             </button>
           </form>

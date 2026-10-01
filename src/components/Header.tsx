@@ -18,6 +18,7 @@ import {
   FileDown,
   Lock,
   Edit3,
+  LogOut,
 } from 'lucide-react';
 import { resetDatabase, seedDemoData, setSessionActiveStatus } from '../services/api';
 import { getDayPin, getMonthPin, getYearPin, getMonthName } from '../utils/securityPins';
@@ -126,6 +127,7 @@ export const Header: React.FC<HeaderProps> = ({
     if (onLockSession) {
       onLockSession();
     }
+    onSelectPhase(1);
     setToolsOpen(false);
   };
 
@@ -142,28 +144,14 @@ export const Header: React.FC<HeaderProps> = ({
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-2.5 flex items-center justify-between gap-4">
         {/* Branding on Left */}
         <div className="flex items-center gap-3 shrink-0">
-          <div className="w-9 h-9 rounded-lg bg-[#FF6105] text-black flex items-center justify-center font-display text-base font-black shadow-md border border-[#FF6105]/50">
-            RH
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="font-display uppercase tracking-wide text-white text-base sm:text-lg">
-                ROBERTO HUNG
-              </span>
-              <a
-                href="https://www.robertohung.com"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="hidden sm:inline-block px-2 py-0.5 rounded-sm bg-[#1A1A1A] border border-[#262626] text-[#FF6105] hover:text-white text-[10px] font-mono-code transition-colors"
-              >
-                www.robertohung.com
-              </a>
-            </div>
-            <div className="text-[10px] text-neutral-400 flex items-center gap-2">
-              <span>Proyecto Inmobiliario RH-RWA</span>
-              <span className="text-neutral-600">·</span>
-              <span className="text-[#FF6105] font-semibold">Conferencia & Simulación en Vivo</span>
-            </div>
+          <div className="text-xs text-neutral-400 flex items-center gap-2 font-mono-code">
+            <span className="font-bold text-white tracking-wide uppercase text-sm font-heading">
+              Proyecto RH-RWA
+            </span>
+            <span className="text-neutral-600 hidden sm:inline">·</span>
+            <span className="text-[#FF6105] font-semibold hidden sm:inline">
+              Conferencia & Simulación en Vivo
+            </span>
           </div>
         </div>
 
@@ -372,17 +360,6 @@ export const Header: React.FC<HeaderProps> = ({
                   <span>Reiniciar Todos los Datos a Cero</span>
                 </button>
 
-                <div className="my-1 border-t border-[#262626]" />
-
-                {/* Session lock */}
-                <button
-                  onClick={handleLockClick}
-                  className="w-full text-left px-3 py-2 text-amber-400 hover:bg-[#1A1A1A] flex items-center gap-2 font-semibold cursor-pointer"
-                >
-                  <Lock className="w-4 h-4 text-amber-400" />
-                  <span>Bloquear Pantalla / Cerrar Sesión</span>
-                </button>
-
                 <button
                   onClick={() => {
                     onOpenEmbedModal();
@@ -413,6 +390,17 @@ export const Header: React.FC<HeaderProps> = ({
                     </>
                   )}
                 </button>
+
+                {/* Destacado: Cerrar Sesión / Bloquear */}
+                <div className="pt-2 mt-1 border-t border-[#262626] px-2 pb-1">
+                  <button
+                    onClick={handleLockClick}
+                    className="w-full py-2.5 px-3 rounded-xl bg-red-600 hover:bg-red-500 text-white flex items-center justify-center gap-2 text-xs font-heading font-bold uppercase tracking-wider transition-all cursor-pointer shadow-md"
+                  >
+                    <LogOut className="w-4 h-4 stroke-[2.5]" />
+                    <span>Cerrar Sesión</span>
+                  </button>
+                </div>
               </div>
             )}
           </div>

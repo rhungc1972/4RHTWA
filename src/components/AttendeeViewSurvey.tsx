@@ -135,7 +135,7 @@ export const AttendeeViewSurvey: React.FC<AttendeeViewSurveyProps> = ({
         sessionStorage.setItem('rwa_gate_survey_unlocked', 'true');
       } catch {}
     } else {
-      setPinError(`Clave incorrecta. Ingrese los dos últimos dígitos del año en curso (${getYearPin()}).`);
+      setPinError('Clave no válida.');
     }
   };
 
@@ -201,24 +201,23 @@ export const AttendeeViewSurvey: React.FC<AttendeeViewSurveyProps> = ({
               <Lock className="w-7 h-7 stroke-[2.2]" />
             </div>
 
-            <h2 className="text-2xl font-heading font-bold text-white uppercase tracking-tight">
+            <h2 className="text-2xl font-heading font-bold text-white uppercase tracking-tight mb-5">
               Encuesta y Dossier RWA
             </h2>
-            <p className="text-xs text-neutral-400 mt-1 mb-5">
-              Ingrese la clave indicada por el ponente en la sala:
-            </p>
 
             <form onSubmit={handleUnlockSurvey} className="space-y-4">
               <input
-                type="text"
+                type="password"
+                inputMode="numeric"
+                pattern="[0-9]*"
                 maxLength={7}
                 value={pinInput}
                 onChange={(e) => {
-                  setPinInput(e.target.value);
+                  setPinInput(e.target.value.replace(/[^0-9]/g, ''));
                   setPinError('');
                 }}
-                placeholder="Clave de Sala"
-                className="w-full text-center py-3.5 px-4 bg-neutral-950 border-2 border-neutral-700 focus:border-[#FF6105] rounded-xl text-2xl font-mono-code font-bold tracking-widest text-white outline-hidden"
+                placeholder="••••••"
+                className="w-full text-center py-3.5 px-4 bg-neutral-950 border-2 border-neutral-700 focus:border-[#FF6105] rounded-xl text-2xl font-mono-code font-bold tracking-widest text-white outline-hidden placeholder:text-neutral-700"
                 autoFocus
               />
 
@@ -233,7 +232,7 @@ export const AttendeeViewSurvey: React.FC<AttendeeViewSurveyProps> = ({
                 type="submit"
                 className="w-full py-3.5 px-4 bg-[#FF6105] hover:bg-[#ff7524] text-black font-heading font-bold text-sm tracking-wider uppercase rounded-xl transition-all shadow-md cursor-pointer"
               >
-                Acceder a la Evaluación
+                Continuar
               </button>
             </form>
           </div>

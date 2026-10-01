@@ -90,9 +90,8 @@ export const PresenterLockScreen: React.FC<PresenterLockScreenProps> = ({
         {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="text-left">
-            <label className="block text-[11px] font-mono-code uppercase tracking-wider text-neutral-400 mb-1.5 flex items-center justify-between">
-              <span>Clave Master del Expositor</span>
-              <span className="text-[10px] text-neutral-500 font-mono-code">PIN de 7 dígitos</span>
+            <label className="block text-[11px] font-mono-code uppercase tracking-wider text-neutral-400 mb-1.5">
+              <span>Clave de Acceso</span>
             </label>
 
             <div className="relative">
@@ -106,7 +105,7 @@ export const PresenterLockScreen: React.FC<PresenterLockScreenProps> = ({
                   setPin(e.target.value.replace(/[^0-9]/g, ''));
                   setErrorMsg('');
                 }}
-                placeholder="•••••••"
+                placeholder="••••••"
                 className="w-full text-center py-3.5 px-4 bg-black border-2 border-neutral-800 focus:border-[#FF6105] rounded-xl text-2xl font-mono-code font-bold tracking-widest text-white outline-hidden placeholder:text-neutral-700 transition-all shadow-inner"
                 autoFocus
               />
@@ -171,7 +170,7 @@ export const PresenterLockScreen: React.FC<PresenterLockScreenProps> = ({
             disabled={isVerifying || !pin}
             className="w-full py-4 px-4 bg-[#FF6105] hover:bg-[#ff7524] text-black font-heading font-bold text-sm uppercase tracking-wider rounded-xl transition-all shadow-[0_0_20px_rgba(255,97,5,0.35)] disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer flex items-center justify-center gap-2 mt-2"
           >
-            <span>{isVerifying ? 'Verificando Sesión...' : 'Desbloquear Pantalla de Conferencia'}</span>
+            <span>{isVerifying ? 'Verificando Sesión...' : 'Continuar'}</span>
             <ArrowRight className="w-4 h-4 stroke-[2.5]" />
           </button>
         </form>

@@ -83,7 +83,7 @@ export const AdminPinModal: React.FC<AdminPinModalProps> = ({
                 setPin(e.target.value.replace(/[^0-9]/g, ''));
                 setErrorMsg('');
               }}
-              placeholder="Clave Master (2089227)"
+              placeholder="••••••"
               className="w-full text-center py-3 px-4 bg-black border-2 border-neutral-800 focus:border-[#FF6105] rounded-xl text-lg font-mono-code font-bold tracking-widest text-white outline-hidden placeholder:text-neutral-700 transition-all"
               autoFocus
             />
@@ -110,7 +110,7 @@ export const AdminPinModal: React.FC<AdminPinModalProps> = ({
               className="flex-1 py-2.5 rounded-xl bg-[#FF6105] hover:bg-[#ff7524] text-black font-mono-code font-bold text-xs uppercase flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-40 shadow-md"
             >
               <FileDown className="w-3.5 h-3.5" />
-              <span>{isValidating ? 'Validando...' : 'Descargar'}</span>
+              <span>{isValidating ? 'Validando...' : 'Continuar'}</span>
             </button>
           </div>
         </form>

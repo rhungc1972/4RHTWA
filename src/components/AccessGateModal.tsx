@@ -45,7 +45,7 @@ export const AccessGateModal: React.FC<AccessGateModalProps> = ({
         } catch {}
         onSuccess('audience');
       } else {
-        setErrorMsg('Clave no válida para esta sesión. Verifique el número indicado en la sala.');
+        setErrorMsg('Clave no válida.');
       }
     }, 150);
   };
@@ -170,21 +170,10 @@ export const AccessGateModal: React.FC<AccessGateModalProps> = ({
             disabled={isValidating || !pin}
             className="w-full py-3.5 px-4 bg-[#FF6105] hover:bg-[#ff7524] text-black font-heading font-bold uppercase tracking-wider text-sm rounded-xl transition-all shadow-[0_0_20px_rgba(255,97,5,0.3)] disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer flex items-center justify-center gap-2"
           >
-            <span>{isValidating ? 'Validando...' : 'Acceder a la Experiencia'}</span>
+            <span>{isValidating ? 'Validando...' : 'Continuar'}</span>
             <ArrowRight className="w-4 h-4 stroke-[2.5]" />
           </button>
         </form>
-
-        {/* Footer info hints */}
-        <div className="mt-5 pt-4 border-t border-neutral-800/80 flex items-center justify-between text-[11px] text-neutral-400 font-mono-code">
-          <span className="flex items-center gap-1">
-            <Smartphone className="w-3 h-3 text-[#FF6105]" /> Asistente: Día del mes
-          </span>
-          <span className="text-neutral-700">|</span>
-          <span className="flex items-center gap-1">
-            <Presentation className="w-3 h-3 text-neutral-400" /> Presentador
-          </span>
-        </div>
       </div>
     </div>
   );
