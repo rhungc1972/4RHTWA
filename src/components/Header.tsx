@@ -16,10 +16,15 @@ import {
   KeyRound,
   Radio,
   FileDown,
+  Lock,
+  Edit3,
 } from 'lucide-react';
-import { resetDatabase, seedDemoData } from '../services/api';
-import { getMonthPin, getYearPin, getMonthName } from '../utils/securityPins';
+import { resetDatabase, seedDemoData, setSessionActiveStatus } from '../services/api';
+import { getDayPin, getMonthPin, getYearPin, getMonthName } from '../utils/securityPins';
 import { generatePresenterStructuredReportPDF } from '../utils/pdfGenerator';
+import { logoutPresenter } from '../utils/presenterAuth';
+import { AdminPinModal } from './AdminPinModal';
+import { useContent } from '../context/ContentContext';
 
 interface HeaderProps {
   currentView: AppViewMode;
@@ -29,6 +34,7 @@ interface HeaderProps {
   isConnected: boolean;
   onOpenEmbedModal: () => void;
   state?: AppStateData;
+  onLockSession?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -39,12 +45,17 @@ export const Header: React.FC<HeaderProps> = ({
   isConnected,
   onOpenEmbedModal,
   state,
+  onLockSession,
 }) => {
   const [toolsOpen, setToolsOpen] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [feedbackAction, setFeedbackAction] = useState<string | null>(null);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+  const [isAdminPinModalOpen, setIsAdminPinModalOpen] = useState(false);
 
+  const { isEditMode, toggleEditMode, setIsEditorModalOpen } = useContent();
+
+  const dayPin = getDayPin();
   const monthPin = getMonthPin();
   const yearPin = getYearPin();
   const monthName = getMonthName();
@@ -59,14 +70,17 @@ export const Header: React.FC<HeaderProps> = ({
 
   const handleReset = async () => {
     if (window.confirm('¿Deseas reiniciar todos los datos para comenzar una nueva conferencia en limpio? El proyector volverá a la Fase 1.')) {
+      setToolsOpen(false);
+      onSelectPhase(1);
+      setFeedbackAction('Conferencia reiniciada en limpio (Fase 1)');
+      setTimeout(() => setFeedbackAction(null), 2500);
+
       try {
         await resetDatabase();
-        onSelectPhase(1);
-        setFeedbackAction('Nueva conferencia iniciada');
-        setTimeout(() => setFeedbackAction(null), 2500);
       } catch (err) {
-        console.error(err);
+        console.warn('Reset background sync warning:', err);
       }
+      return;
     }
     setToolsOpen(false);
   };
@@ -82,7 +96,12 @@ export const Header: React.FC<HeaderProps> = ({
     setToolsOpen(false);
   };
 
-  const handleDownloadReport = () => {
+  const handleRequestDownloadReport = () => {
+    setToolsOpen(false);
+    setIsAdminPinModalOpen(true);
+  };
+
+  const handleAdminDownloadConfirmed = () => {
     setIsGeneratingPdf(true);
     try {
       if (state) {
@@ -94,8 +113,20 @@ export const Header: React.FC<HeaderProps> = ({
       console.error('Error al generar informe estructurado PDF:', err);
     } finally {
       setIsGeneratingPdf(false);
-      setToolsOpen(false);
     }
+  };
+
+  const handleLockClick = async () => {
+    logoutPresenter();
+    try {
+      await setSessionActiveStatus(false);
+    } catch (err) {
+      console.error('Error updating session active status:', err);
+    }
+    if (onLockSession) {
+      onLockSession();
+    }
+    setToolsOpen(false);
   };
 
   const phases = [
@@ -267,13 +298,41 @@ export const Header: React.FC<HeaderProps> = ({
                 <div className="p-3 my-1 bg-[#141414] border-y border-[#262626] text-[11px] text-neutral-300">
                   <div className="font-bold text-white mb-1 flex items-center gap-1.5">
                     <KeyRound className="w-3.5 h-3.5 text-[#FF6105]" />
-                    <span>Claves de Sala (Anunciar en vivo):</span>
+                    <span>Claves Dinámicas de Sala:</span>
                   </div>
                   <div className="space-y-1 font-mono-code text-[10px]">
+                    <div>• Etapa 1 (Capital): <span className="text-[#FF6105] font-bold">{dayPin}</span> (Día actual)</div>
                     <div>• Etapa 2 (Tokens): <span className="text-[#FF6105] font-bold">{monthPin}</span> ({monthName})</div>
                     <div>• Etapa 3 (Encuesta): <span className="text-[#FF6105] font-bold">{yearPin}</span> (Año {new Date().getFullYear()})</div>
                   </div>
                 </div>
+
+                {/* Edit Mode Toggle & Modal */}
+                <button
+                  onClick={() => {
+                    toggleEditMode();
+                    setToolsOpen(false);
+                  }}
+                  className={`w-full text-left px-3 py-2 flex items-center gap-2 font-medium cursor-pointer transition-colors ${
+                    isEditMode
+                      ? 'bg-[#FF6105]/20 text-[#FF6105] font-bold'
+                      : 'text-neutral-300 hover:bg-[#1A1A1A]'
+                  }`}
+                >
+                  <Edit3 className="w-4 h-4 text-[#FF6105]" />
+                  <span>{isEditMode ? 'Desactivar Edición In-Situ' : 'Modo Edición de Contenidos'}</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    setIsEditorModalOpen(true);
+                    setToolsOpen(false);
+                  }}
+                  className="w-full text-left px-3 py-2 text-neutral-300 hover:bg-[#1A1A1A] flex items-center gap-2 cursor-pointer"
+                >
+                  <Sparkles className="w-4 h-4 text-[#FF6105]" />
+                  <span>Personalizar Textos y Citas</span>
+                </button>
 
                 <button
                   onClick={() => {
@@ -288,10 +347,10 @@ export const Header: React.FC<HeaderProps> = ({
                 </button>
 
                 <button
-                  onClick={handleDownloadReport}
+                  onClick={handleRequestDownloadReport}
                   disabled={isGeneratingPdf}
                   className="w-full text-left px-3 py-2 text-[#FF6105] hover:bg-[#1A1A1A] flex items-center gap-2 font-bold cursor-pointer disabled:opacity-50"
-                  title="Descargar informe consolidado con datos de los participantes"
+                  title="Descargar informe consolidado con datos de los participantes (Requiere clave)"
                 >
                   <FileDown className="w-4 h-4 text-[#FF6105]" />
                   <span>Descargar Informe de Asistentes (PDF)</span>
@@ -314,6 +373,15 @@ export const Header: React.FC<HeaderProps> = ({
                 </button>
 
                 <div className="my-1 border-t border-[#262626]" />
+
+                {/* Session lock */}
+                <button
+                  onClick={handleLockClick}
+                  className="w-full text-left px-3 py-2 text-amber-400 hover:bg-[#1A1A1A] flex items-center gap-2 font-semibold cursor-pointer"
+                >
+                  <Lock className="w-4 h-4 text-amber-400" />
+                  <span>Bloquear Pantalla / Cerrar Sesión</span>
+                </button>
 
                 <button
                   onClick={() => {
@@ -350,6 +418,13 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Admin Pin Confirmation Modal for Protected Report Download */}
+      <AdminPinModal
+        isOpen={isAdminPinModalOpen}
+        onClose={() => setIsAdminPinModalOpen(false)}
+        onSuccess={handleAdminDownloadConfirmed}
+      />
 
       {/* Action feedback toast */}
       {feedbackAction && (

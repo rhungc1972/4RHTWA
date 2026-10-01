@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { AppStateData } from '../types';
+import { EditableText } from '../context/ContentContext';
 import {
   AlertTriangle,
   ArrowRight,
@@ -122,12 +123,18 @@ export const Phase2ExclusionDiagnosis: React.FC<Phase2Props> = ({ state, onGoToP
             #ElDerechoDeHacerRuido · Roberto Hung Cavalieri
           </span>
         </div>
-        <h2 className="text-3xl sm:text-4xl lg:text-5xl font-heading font-extrabold uppercase tracking-tight text-white leading-tight">
-          Diagnóstico del Capital Paralizado: <span className="text-[#FF6105]">La Brecha de Exclusión</span>
-        </h2>
-        <p className="text-sm text-neutral-400 mt-2 max-w-3xl leading-relaxed font-body">
-          Visualización empírica de cómo la barrera tradicional ($10.000 USD por cuota indivisa) trunca la movilización del ahorro privado en el propio auditorio, dejando al promotor con un severo déficit de financiación.
-        </p>
+        <EditableText
+          contentKey="phase2_title"
+          defaultText="Diagnóstico del Capital Paralizado: La Brecha de Exclusión"
+          as="h2"
+          className="text-3xl sm:text-4xl lg:text-5xl font-heading font-extrabold uppercase tracking-tight text-white leading-tight"
+        />
+        <EditableText
+          contentKey="phase2_subtitle"
+          defaultText="Visualización empírica de cómo la barrera tradicional ($10.000 USD por cuota indivisa) trunca la movilización del ahorro privado en el propio auditorio, dejando al promotor con un severo déficit de financiación."
+          as="p"
+          className="text-sm text-neutral-400 mt-2 max-w-3xl leading-relaxed font-body block"
+        />
       </div>
 
       {/* Main Grid: Project Photos on Left, Audited Metrics on Right */}

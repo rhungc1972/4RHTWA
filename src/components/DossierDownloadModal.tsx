@@ -9,7 +9,8 @@ import {
   Check,
   Building,
 } from 'lucide-react';
-import { generateAndDownloadDossierPDF } from '../utils/pdfGenerator';
+import { generateAndDownloadDossierPDF, generateCleanParticipantDossierPDF } from '../utils/pdfGenerator';
+import { useRealtimeState } from '../services/api';
 
 interface DossierDownloadModalProps {
   isOpen: boolean;
@@ -36,12 +37,30 @@ export const DossierDownloadModal: React.FC<DossierDownloadModalProps> = ({
   m2Acquired = 0.1,
   ratings,
 }) => {
+  const { state } = useRealtimeState();
   const printableRef = useRef<HTMLDivElement | null>(null);
 
   const [isGenerating, setIsGenerating] = useState(false);
   const [downloadSuccess, setDownloadSuccess] = useState(false);
+  const [cleanSuccess, setCleanSuccess] = useState(false);
 
   if (!isOpen) return null;
+
+  const handleDownloadCleanPDF = async () => {
+    setIsGenerating(true);
+    try {
+      await generateCleanParticipantDossierPDF({
+        appState: state,
+        ratings,
+      });
+      setCleanSuccess(true);
+      setTimeout(() => setCleanSuccess(false), 3000);
+    } catch (err) {
+      console.error('Error generating clean PDF:', err);
+    } finally {
+      setIsGenerating(false);
+    }
+  };
 
   const handleDownloadPDF = () => {
     setIsGenerating(true);
@@ -52,6 +71,7 @@ export const DossierDownloadModal: React.FC<DossierDownloadModalProps> = ({
         tokensSubscribed,
         usdAmount,
         m2Acquired,
+        appState: state,
         ratings,
       });
       setDownloadSuccess(true);
@@ -92,7 +112,26 @@ export const DossierDownloadModal: React.FC<DossierDownloadModalProps> = ({
             </p>
           </div>
 
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
+            <button
+              onClick={handleDownloadCleanPDF}
+              disabled={isGenerating}
+              className="px-3.5 py-2.5 bg-neutral-900 hover:bg-neutral-800 text-white border border-neutral-700 text-xs font-bold uppercase tracking-wider rounded-xl transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+              title="Descargar infografía limpia sin datos personales (Zero PII)"
+            >
+              {cleanSuccess ? (
+                <>
+                  <Check className="w-4 h-4 stroke-[3] text-emerald-400" />
+                  <span className="text-emerald-400">¡Infografía Descargada!</span>
+                </>
+              ) : (
+                <>
+                  <Download className="w-4 h-4 stroke-[2.5] text-[#FF6105]" />
+                  <span>Infografía Sala (Zero PII)</span>
+                </>
+              )}
+            </button>
+
             <button
               onClick={handleDownloadPDF}
               disabled={isGenerating}
@@ -107,7 +146,7 @@ export const DossierDownloadModal: React.FC<DossierDownloadModalProps> = ({
               ) : (
                 <>
                   <Download className="w-4 h-4 stroke-[2.5]" />
-                  <span>Descargar PDF</span>
+                  <span>Dossier Personal</span>
                 </>
               )}
             </button>

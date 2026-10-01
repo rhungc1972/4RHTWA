@@ -12,7 +12,9 @@ service cloud.firestore {
         && data.phase is number && data.phase >= 1 && data.phase <= 5
         && data.command is string && data.command.size() <= 50
         && data.commandTimestamp is number
-        && data.updatedAt is number;
+        && data.updatedAt is number
+        && (!('isActive' in data) || data.isActive is bool)
+        && (!('lastResetTimestamp' in data) || data.lastResetTimestamp is number);
     }
 
     function isValidForm1(data) {
@@ -65,21 +67,24 @@ service cloud.firestore {
       match /form1_submissions/{submissionId} {
         allow read: if isValidId(sessionId);
         allow create: if isValidId(sessionId) && isValidId(submissionId) && isValidForm1(request.resource.data);
-        allow update, delete: if false;
+        allow delete: if isValidId(sessionId) && isValidId(submissionId);
+        allow update: if false;
       }
 
       // Phase 3: Form 2 Submissions
       match /form2_submissions/{submissionId} {
         allow read: if isValidId(sessionId);
         allow create: if isValidId(sessionId) && isValidId(submissionId) && isValidForm2(request.resource.data);
-        allow update, delete: if false;
+        allow delete: if isValidId(sessionId) && isValidId(submissionId);
+        allow update: if false;
       }
 
       // Phase 5: Survey Submissions
       match /survey_submissions/{submissionId} {
         allow read: if isValidId(sessionId);
         allow create: if isValidId(sessionId) && isValidId(submissionId) && isValidSurvey(request.resource.data);
-        allow update, delete: if false;
+        allow delete: if isValidId(sessionId) && isValidId(submissionId);
+        allow update: if false;
       }
     }
 

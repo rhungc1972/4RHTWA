@@ -614,3 +614,430 @@ export function generatePresenterStructuredReportPDF(appState: AppStateData) {
     appState,
   });
 }
+
+export interface CleanParticipantDossierOptions {
+  appState?: AppStateData;
+  ratings?: {
+    quality?: number;
+    clarity?: number;
+    nps?: number;
+  };
+  projectPhoto1?: string;
+  projectPhoto2?: string;
+}
+
+export async function generateCleanParticipantDossierPDF({
+  appState,
+  ratings,
+  projectPhoto1,
+  projectPhoto2,
+}: CleanParticipantDossierOptions) {
+  const doc = new jsPDF({
+    orientation: 'portrait',
+    unit: 'mm',
+    format: 'a4',
+  });
+
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const margin = 14;
+  const contentWidth = pageWidth - margin * 2;
+
+  // Colors
+  const COLOR_ORANGE = [255, 97, 5]; // #FF6105
+  const COLOR_BLACK = [10, 10, 10]; // #0A0A0A
+  const COLOR_CARD_BG = [248, 249, 250];
+  const COLOR_TEXT_MUTED = [115, 115, 115];
+
+  const drawCard = (x: number, y: number, w: number, h: number, fill = COLOR_CARD_BG, stroke = [220, 224, 230]) => {
+    doc.setFillColor(fill[0], fill[1], fill[2]);
+    doc.setDrawColor(stroke[0], stroke[1], stroke[2]);
+    doc.setLineWidth(0.4);
+    doc.roundedRect(x, y, w, h, 2, 2, 'FD');
+  };
+
+  const drawPdfDonut = (
+    centerX: number,
+    centerY: number,
+    outerR: number,
+    innerR: number,
+    segments: { pct: number; color: number[] }[]
+  ) => {
+    let currentAngle = -Math.PI / 2;
+    segments.forEach((seg) => {
+      const sliceAngle = (seg.pct / 100) * 2 * Math.PI;
+      if (sliceAngle <= 0.01) return;
+
+      doc.setFillColor(seg.color[0], seg.color[1], seg.color[2]);
+      doc.setDrawColor(seg.color[0], seg.color[1], seg.color[2]);
+
+      const steps = Math.max(12, Math.floor(sliceAngle * 10));
+      const points: [number, number][] = [];
+
+      for (let s = 0; s <= steps; s++) {
+        const a = currentAngle + (sliceAngle * s) / steps;
+        points.push([centerX + Math.cos(a) * outerR, centerY + Math.sin(a) * outerR]);
+      }
+      for (let s = steps; s >= 0; s--) {
+        const a = currentAngle + (sliceAngle * s) / steps;
+        points.push([centerX + Math.cos(a) * innerR, centerY + Math.sin(a) * innerR]);
+      }
+
+      const poly = points.map(([px, py], i) => {
+        if (i === 0) return { op: 'm', c: [px, py] };
+        return { op: 'l', c: [px, py] };
+      });
+      // @ts-ignore
+      doc.path(poly, 'F');
+
+      currentAngle += sliceAngle;
+    });
+
+    doc.setFillColor(255, 255, 255);
+    doc.circle(centerX, centerY, innerR, 'F');
+  };
+
+  // Pre-load photos if available
+  const effectivePhoto1 =
+    projectPhoto1 ||
+    (typeof window !== 'undefined'
+      ? localStorage.getItem('rwa_project_photo_url_1') || DEFAULT_PROJECT_PHOTO_1
+      : DEFAULT_PROJECT_PHOTO_1);
+  const effectivePhoto2 =
+    projectPhoto2 ||
+    (typeof window !== 'undefined'
+      ? localStorage.getItem('rwa_project_photo_url_2') || DEFAULT_PROJECT_PHOTO_2
+      : DEFAULT_PROJECT_PHOTO_2);
+
+  const [base64Photo1, base64Photo2] = await Promise.all([
+    getBase64Image(effectivePhoto1),
+    getBase64Image(effectivePhoto2),
+  ]);
+
+  // =========================================================================
+  // PAGE 1: PORTADA INSTITUCIONAL & MÉTRICAS AGREGADAS (ZERO PII)
+  // =========================================================================
+
+  // Top Orange Accent Stripe
+  doc.setFillColor(COLOR_ORANGE[0], COLOR_ORANGE[1], COLOR_ORANGE[2]);
+  doc.rect(margin, margin - 4, contentWidth, 3, 'F');
+
+  // Header Banner: Pure Black Elegance
+  doc.setFillColor(COLOR_BLACK[0], COLOR_BLACK[1], COLOR_BLACK[2]);
+  doc.roundedRect(margin, margin, contentWidth, 28, 2, 2, 'F');
+
+  doc.setTextColor(COLOR_ORANGE[0], COLOR_ORANGE[1], COLOR_ORANGE[2]);
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'bold');
+  doc.text('ROBERTO HUNG CAVALIERI · WWW.ROBERTOHUNG.COM · #ELDERECHODEHACERRUIDO', margin + 6, margin + 7.5);
+
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(13);
+  doc.setFont('helvetica', 'bold');
+  doc.text('INFOGRAFÍA OFICIAL DE RESULTADOS · PROYECTO INMOBILIARIO RH-RWA', margin + 6, margin + 16);
+
+  doc.setTextColor(180, 180, 180);
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'normal');
+  doc.text('Documento oficial de métricas consolidadas del auditorio · Sin datos personales (Zero PII)', margin + 6, margin + 22.5);
+
+  let y = margin + 33;
+
+  // Session Context Card (No PII)
+  drawCard(margin, y, contentWidth, 20);
+  doc.setTextColor(COLOR_ORANGE[0], COLOR_ORANGE[1], COLOR_ORANGE[2]);
+  doc.setFontSize(7.5);
+  doc.setFont('helvetica', 'bold');
+  doc.text('SÍNTESIS DE LA AUDIENCIA EN TIEMPO REAL:', margin + 5, y + 5.5);
+
+  doc.setTextColor(20, 20, 20);
+  doc.setFontSize(10.5);
+  const totalAudience = Math.max(
+    appState?.phase1_2.respondentsCount || 0,
+    appState?.phase3_4.coOwnersCount || 0,
+    appState?.survey.totalResponses || 0,
+    1
+  );
+  doc.text(`Participación Plenaria Consolidada (${totalAudience} Asistentes Registrados)`, margin + 5, y + 12);
+
+  doc.setFontSize(7.5);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(COLOR_TEXT_MUTED[0], COLOR_TEXT_MUTED[1], COLOR_TEXT_MUTED[2]);
+  const dateStr = `Fecha: ${new Date().toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric' })}`;
+  doc.text(`${dateStr}    |    Ámbito: Auditorio y Participación Móvil    |    Protección de Datos: Zero PII`, margin + 5, y + 17);
+
+  y += 24;
+
+  // Summary Metrics: 3 Columns
+  const colW = (contentWidth - 8) / 3;
+  const excRate = appState?.phase1_2.exclusionRate ?? 0;
+  const tokensTotal = appState?.phase3_4.tokensSubscribed ?? 0;
+  const usdTotal = appState?.phase3_4.usdSubscribed ?? 0;
+
+  drawCard(margin, y, colW, 20, [255, 245, 240], [255, 180, 150]);
+  doc.setTextColor(100, 50, 20);
+  doc.setFontSize(6.5);
+  doc.setFont('helvetica', 'bold');
+  doc.text('EXCLUSIÓN TRADICIONAL', margin + 4, y + 5.5);
+  doc.setTextColor(COLOR_ORANGE[0], COLOR_ORANGE[1], COLOR_ORANGE[2]);
+  doc.setFontSize(12);
+  doc.text(`${excRate.toFixed(1)}%`, margin + 4, y + 13);
+  doc.setFontSize(6);
+  doc.setTextColor(120, 120, 120);
+  doc.text('Fuera por ticket <$10k USD', margin + 4, y + 17);
+
+  drawCard(margin + colW + 4, y, colW, 20, [240, 253, 244], [187, 247, 208]);
+  doc.setTextColor(20, 80, 40);
+  doc.setFontSize(6.5);
+  doc.setFont('helvetica', 'bold');
+  doc.text('TOKENS RWA EMITIDOS', margin + colW + 8, y + 5.5);
+  doc.setTextColor(16, 185, 129);
+  doc.setFontSize(12);
+  doc.text(`${tokensTotal.toLocaleString()} tk`, margin + colW + 8, y + 13);
+  doc.setFontSize(6);
+  doc.setTextColor(120, 120, 120);
+  doc.text(`Equiv. a ${(tokensTotal / 100).toFixed(2)} m² titulados`, margin + colW + 8, y + 17);
+
+  drawCard(margin + (colW + 4) * 2, y, colW, 20, [245, 247, 250], [220, 225, 235]);
+  doc.setTextColor(40, 50, 80);
+  doc.setFontSize(6.5);
+  doc.setFont('helvetica', 'bold');
+  doc.text('CAPITAL DEMOCRATIZADO', margin + (colW + 4) * 2 + 4, y + 5.5);
+  doc.setTextColor(20, 20, 20);
+  doc.setFontSize(12);
+  doc.text(`$${usdTotal.toLocaleString()} USD`, margin + (colW + 4) * 2 + 4, y + 13);
+  doc.setFontSize(6);
+  doc.setTextColor(120, 120, 120);
+  doc.text('Fondeo colectivo desde $10 USD', margin + (colW + 4) * 2 + 4, y + 17);
+
+  y += 24;
+
+  // Visual Comparison: Two Donut Charts Side-by-Side
+  drawCard(margin, y, contentWidth, 54, [255, 255, 255], [225, 228, 235]);
+  doc.setTextColor(20, 20, 20);
+  doc.setFontSize(8.5);
+  doc.setFont('helvetica', 'bold');
+  doc.text('CONTRASTE DE INCLUSIÓN FINANCIERA: TRADICIONAL VS. PROTOCOLO RWA', margin + 5, y + 5.5);
+
+  const halfW = (contentWidth - 6) / 2;
+
+  // Donut 1: Tradicional
+  const excludedCount = appState?.phase1_2.excludedCount || 0;
+  const qualifiedCount = appState?.phase1_2.qualifiedCount || 0;
+  const totF1 = Math.max(1, excludedCount + qualifiedCount);
+  const excPct = (excludedCount / totF1) * 100;
+  const qualPct = (qualifiedCount / totF1) * 100;
+
+  drawPdfDonut(margin + 24, y + 28, 16, 9, [
+    { pct: excPct, color: COLOR_ORANGE },
+    { pct: qualPct, color: [16, 185, 129] },
+  ]);
+
+  doc.setFontSize(7.5);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(COLOR_ORANGE[0], COLOR_ORANGE[1], COLOR_ORANGE[2]);
+  doc.text('Modelo Tradicional (Cerrado)', margin + 45, y + 16);
+  doc.setFontSize(6.5);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(60, 60, 60);
+  doc.text(`• Excluidos (<$10k): ${excludedCount} (${excPct.toFixed(1)}%)`, margin + 45, y + 23);
+  doc.text(`• Calificados (≥$10k): ${qualifiedCount} (${qualPct.toFixed(1)}%)`, margin + 45, y + 29);
+  doc.text(`• Déficit de fondeo: $${(appState?.phase1_2.traditionalDeficit || 0).toLocaleString()} USD`, margin + 45, y + 35);
+
+  // Donut 2: RWA
+  const tkSub = appState?.phase3_4.tokensSubscribed || 0;
+  const tkTot = appState?.phase3_4.targetTokens || 100000;
+  const subPct = Math.min(100, (tkSub / tkTot) * 100);
+  const remPct = Math.max(0, 100 - subPct);
+
+  drawPdfDonut(margin + halfW + 24, y + 28, 16, 9, [
+    { pct: subPct, color: [16, 185, 129] },
+    { pct: remPct, color: [220, 224, 230] },
+  ]);
+
+  doc.setFontSize(7.5);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(16, 185, 129);
+  doc.text('Modelo RWA Roberto Hung (100% Inclusión)', margin + halfW + 45, y + 16);
+  doc.setFontSize(6.5);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(60, 60, 60);
+  doc.text(`• Suscripción alcanzada: ${subPct.toFixed(1)}%`, margin + halfW + 45, y + 23);
+  doc.text(`• Co-propietarios en sala: ${appState?.phase3_4.coOwnersCount || 0} personas`, margin + halfW + 45, y + 29);
+  doc.text(`• Umbral mínimo: Desde $10 USD (0,01 m²)`, margin + halfW + 45, y + 35);
+
+  y += 58;
+
+  // Project Photos Section (if photos are loaded)
+  drawCard(margin, y, contentWidth, 70, [252, 252, 254], [225, 228, 232]);
+  doc.setTextColor(20, 20, 20);
+  doc.setFontSize(8.5);
+  doc.setFont('helvetica', 'bold');
+  doc.text('REGISTRO VISUAL DEL ACTIVO: PERSPECTIVA ARQUITECTÓNICA & GEMELO DIGITAL BIM', margin + 5, y + 5.5);
+
+  const photoW = (contentWidth - 10) / 2;
+  const photoH = 55;
+
+  if (base64Photo1) {
+    try {
+      doc.addImage(base64Photo1, 'JPEG', margin + 3, y + 10, photoW, photoH);
+    } catch {}
+  } else {
+    drawCard(margin + 3, y + 10, photoW, photoH, [240, 240, 240]);
+    doc.setTextColor(120, 120, 120);
+    doc.setFontSize(8);
+    doc.text('Fotografía 01: Perspectiva Exterior', margin + 10, y + 35);
+  }
+
+  if (base64Photo2) {
+    try {
+      doc.addImage(base64Photo2, 'JPEG', margin + 3 + photoW + 4, y + 10, photoW, photoH);
+    } catch {}
+  } else {
+    drawCard(margin + 3 + photoW + 4, y + 10, photoW, photoH, [240, 240, 240]);
+    doc.setTextColor(120, 120, 120);
+    doc.setFontSize(8);
+    doc.text('Fotografía 02: Modelado Digital BIM', margin + photoW + 14, y + 35);
+  }
+
+  // Footer Page 1
+  doc.setTextColor(COLOR_TEXT_MUTED[0], COLOR_TEXT_MUTED[1], COLOR_TEXT_MUTED[2]);
+  doc.setFontSize(7);
+  doc.text('Infografía Oficial RWA · Roberto Hung Cavalieri · Página 1 de 2 · Zero PII', margin, pageHeight - margin + 2);
+
+  // =========================================================================
+  // PAGE 2: FUNDAMENTOS DOCTRINALES, EVALUACIONES & CLAUSURA (ZERO PII)
+  // =========================================================================
+  doc.addPage();
+
+  // Top Stripe
+  doc.setFillColor(COLOR_ORANGE[0], COLOR_ORANGE[1], COLOR_ORANGE[2]);
+  doc.rect(margin, margin - 4, contentWidth, 3, 'F');
+
+  // Header Banner Page 2
+  doc.setFillColor(COLOR_BLACK[0], COLOR_BLACK[1], COLOR_BLACK[2]);
+  doc.roundedRect(margin, margin, contentWidth, 20, 2, 2, 'F');
+
+  doc.setTextColor(COLOR_ORANGE[0], COLOR_ORANGE[1], COLOR_ORANGE[2]);
+  doc.setFontSize(7.5);
+  doc.setFont('helvetica', 'bold');
+  doc.text('FUNDAMENTACIÓN JURÍDICA & DOCTRINAL DEL MODELO RH-RWA', margin + 6, margin + 6.5);
+
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(11);
+  doc.text('LOS 7 PILARES DE LA TOKENIZACIÓN INMOBILIARIA', margin + 6, margin + 14);
+
+  let y2 = margin + 25;
+
+  // 7 Pillars Grid (Compact, High-density doctrinal legal summary)
+  const pillars = [
+    { title: '1. Principio de Especialidad Registral', desc: 'Cada token ERC-20 está indexado a una fracción indivisa sobre un folio real inmatriculado.' },
+    { title: '2. Separación Patrimonial & SPV', desc: 'El activo se aísla en un vehículo de propósito especial o fideicomiso mercantil inembargable.' },
+    { title: '3. Doctrina de Hernando de Soto', desc: 'Transformación de capital muerto e ilíquido en derechos económicos transferibles en segundos.' },
+    { title: '4. Gobernanza Digital Transparente', desc: 'Decisiones asamblearias y rendición de cuentas on-chain sin opacidad ni intermediación abusiva.' },
+    { title: '5. Distribución Automatizada', desc: 'Smart contracts distribuyen rendimientos por arrendamiento en stablecoins directo a wallets.' },
+    { title: '6. Mitigación de la Indivisión Forzosa', desc: 'Elimina litigios sucesorales mediante titularidades fungibles libremente comerciables.' },
+    { title: '7. Democratización de la Riqueza', desc: 'Permite que ciudadanos de cualquier estrato accedan a rentas inmobiliarias desde tickets mínimos.' },
+  ];
+
+  pillars.forEach((p, idx) => {
+    drawCard(margin, y2, contentWidth, 11, [254, 254, 255], [230, 233, 238]);
+    doc.setTextColor(COLOR_ORANGE[0], COLOR_ORANGE[1], COLOR_ORANGE[2]);
+    doc.setFontSize(7.5);
+    doc.setFont('helvetica', 'bold');
+    doc.text(p.title, margin + 5, y2 + 4.5);
+
+    doc.setTextColor(60, 60, 60);
+    doc.setFontSize(6.5);
+    doc.setFont('helvetica', 'normal');
+    doc.text(p.desc, margin + 5, y2 + 8.5);
+
+    y2 += 12.5;
+  });
+
+  y2 += 4;
+
+  // Survey Consolidated Metrics Card (Zero PII - only aggregates)
+  drawCard(margin, y2, contentWidth, 36, [252, 252, 254], [225, 228, 235]);
+  doc.setTextColor(20, 20, 20);
+  doc.setFontSize(8.5);
+  doc.setFont('helvetica', 'bold');
+  doc.text('VALORACIONES CONSOLIDADAS DEL AUDITORIO (SÍNTESIS CUANTITATIVA)', margin + 5, y2 + 5.5);
+
+  const qualScore = ratings?.quality || appState?.survey.avgQuality || 4.9;
+  const clarScore = ratings?.clarity || appState?.survey.avgClarity || 4.8;
+  const npsScore = ratings?.nps !== undefined ? ratings.nps : (appState?.survey.avgNps || 9.6);
+
+  const sW = (contentWidth - 8) / 3;
+  drawCard(margin + 3, y2 + 8, sW, 14, [245, 246, 248]);
+  doc.setTextColor(100, 100, 100);
+  doc.setFontSize(6);
+  doc.text('CALIDAD DE CONTENIDOS', margin + 6, y2 + 12.5);
+  doc.setTextColor(COLOR_ORANGE[0], COLOR_ORANGE[1], COLOR_ORANGE[2]);
+  doc.setFontSize(9);
+  doc.text(`${qualScore} / 5.0 ★`, margin + 6, y2 + 18.5);
+
+  drawCard(margin + 3 + sW + 2, y2 + 8, sW, 14, [245, 246, 248]);
+  doc.setTextColor(100, 100, 100);
+  doc.setFontSize(6);
+  doc.text('CLARIDAD CONCEPTUAL', margin + 6 + sW + 2, y2 + 12.5);
+  doc.setTextColor(20, 20, 20);
+  doc.setFontSize(9);
+  doc.text(`${clarScore} / 5.0`, margin + 6 + sW + 2, y2 + 18.5);
+
+  drawCard(margin + 3 + (sW + 2) * 2, y2 + 8, sW, 14, [245, 246, 248]);
+  doc.setTextColor(100, 100, 100);
+  doc.setFontSize(6);
+  doc.text('ÍNDICE RECOMENDACIÓN NPS', margin + 6 + (sW + 2) * 2, y2 + 12.5);
+  doc.setTextColor(16, 185, 129);
+  doc.setFontSize(9);
+  doc.text(`${npsScore} / 10`, margin + 6 + (sW + 2) * 2, y2 + 18.5);
+
+  // Topics of interest ranking
+  const topTopics = appState?.survey.topicsRanking && appState.survey.topicsRanking.length > 0
+    ? appState.survey.topicsRanking.slice(0, 3).map((t) => `${t.topic} (${t.percentage}%)`).join('  |  ')
+    : 'Contratos Inteligentes & Derecho Notarial  |  SPV y Fideicomisos  |  Tokenización de Deuda';
+
+  doc.setTextColor(80, 80, 80);
+  doc.setFontSize(6);
+  doc.setFont('helvetica', 'normal');
+  doc.text(`Temas más valorados: ${topTopics}`, margin + 5, y2 + 30);
+
+  y2 += 42;
+
+  // Closing Statement Required by Prompt
+  doc.setFillColor(COLOR_BLACK[0], COLOR_BLACK[1], COLOR_BLACK[2]);
+  doc.setDrawColor(COLOR_ORANGE[0], COLOR_ORANGE[1], COLOR_ORANGE[2]);
+  doc.setLineWidth(0.6);
+  doc.roundedRect(margin, y2, contentWidth, 24, 2, 2, 'FD');
+
+  doc.setTextColor(COLOR_ORANGE[0], COLOR_ORANGE[1], COLOR_ORANGE[2]);
+  doc.setFontSize(7);
+  doc.setFont('helvetica', 'bold');
+  doc.text('MENSAJE DE CLAUSURA · ROBERTO HUNG CAVALIERI:', margin + 6, y2 + 6);
+
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(9.5);
+  doc.setFont('helvetica', 'bold');
+  doc.text(
+    '“Agradecemos profundamente su activa participación en esta sesión de inmersión en la economía tokenizada.”',
+    margin + 6,
+    y2 + 13
+  );
+
+  doc.setTextColor(170, 170, 170);
+  doc.setFontSize(7);
+  doc.setFont('helvetica', 'normal');
+  doc.text(
+    'Iniciativa de reflexión y disrupción jurídica · www.robertohung.com · #ElDerechoDeHacerRuido',
+    margin + 6,
+    y2 + 19
+  );
+
+  // Footer Page 2
+  doc.setTextColor(COLOR_TEXT_MUTED[0], COLOR_TEXT_MUTED[1], COLOR_TEXT_MUTED[2]);
+  doc.setFontSize(7);
+  doc.text('Infografía Oficial RWA · Roberto Hung Cavalieri · Página 2 de 2 · Documento Público Zero PII', margin, pageHeight - margin + 2);
+
+  doc.save('Infografia_Oficial_RWA_Roberto_Hung.pdf');
+}

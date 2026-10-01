@@ -11,21 +11,54 @@ import { AttendeeViewForm2 } from './components/AttendeeViewForm2';
 import { AttendeeViewSurvey } from './components/AttendeeViewSurvey';
 import { PresenterRemoteView } from './components/PresenterRemoteView';
 import { AccessGateModal } from './components/AccessGateModal';
-import { ExitIntentModal } from './components/ExitIntentModal';
 import { WordPressEmbedModal } from './components/WordPressEmbedModal';
+import { PresenterLockScreen } from './components/PresenterLockScreen';
+import { ContentEditorModal } from './components/ContentEditorModal';
+import { AttendeeWaitingScreen } from './components/AttendeeWaitingScreen';
 import { AppViewMode } from './types';
 import { ChevronLeft, ChevronRight, KeyRound, Radio, Eye, EyeOff } from 'lucide-react';
 import { getDayPin, getMonthPin, getYearPin, PRESENTER_MASTER_PIN } from './utils/securityPins';
+import { isPresenterAuthenticated, checkSessionValidity, logoutPresenter } from './utils/presenterAuth';
 
 export default function App() {
-  const { state, isConnected } = useRealtimeState();
+  const { state, isConnected, isSessionActive } = useRealtimeState();
   const [currentView, setCurrentView] = useState<AppViewMode>('presenter');
   const [currentPhase, setCurrentPhase] = useState<number>(1);
   const [isGatewayModalOpen, setIsGatewayModalOpen] = useState<boolean>(false);
   const [isEmbedModalOpen, setIsEmbedModalOpen] = useState<boolean>(false);
-  const [isExitModalOpen, setIsExitModalOpen] = useState<boolean>(false);
-  const [surveyDismissed, setSurveyDismissed] = useState<boolean>(false);
   const [isUiBarsVisible, setIsUiBarsVisible] = useState<boolean>(false);
+  const [isPresenterAuthed, setIsPresenterAuthed] = useState<boolean>(() => {
+    return isPresenterAuthenticated();
+  });
+
+  // Track conference reset event to immediately return projector to Phase 1
+  useEffect(() => {
+    const handleResetEvent = () => {
+      setCurrentPhase(1);
+    };
+    window.addEventListener('rwa_state_reset', handleResetEvent);
+    return () => window.removeEventListener('rwa_state_reset', handleResetEvent);
+  }, []);
+
+  // Track session authentication & 6-hour expiration
+  useEffect(() => {
+    const handleAuthEvent = (e: Event) => {
+      const customEvent = e as CustomEvent<{ authenticated: boolean }>;
+      setIsPresenterAuthed(customEvent.detail?.authenticated ?? isPresenterAuthenticated());
+    };
+    window.addEventListener('rwa_presenter_auth_changed', handleAuthEvent);
+
+    // Periodic check for 6-hour expiration every 30 seconds
+    const interval = setInterval(() => {
+      const valid = checkSessionValidity();
+      setIsPresenterAuthed(valid);
+    }, 30000);
+
+    return () => {
+      window.removeEventListener('rwa_presenter_auth_changed', handleAuthEvent);
+      clearInterval(interval);
+    };
+  }, []);
 
   const dayPin = getDayPin();
   const monthPin = getMonthPin();
@@ -107,28 +140,34 @@ export default function App() {
     if (currentPhase > 1) setCurrentPhase((p) => p - 1);
   };
 
-  // Exit-intent detection for attendees
-  useEffect(() => {
-    const isAttendee =
-      currentView === 'attendee_form1' || currentView === 'attendee_form2';
-    if (!isAttendee || surveyDismissed) return;
-
-    const handleMouseLeave = (e: MouseEvent) => {
-      if (e.clientY <= 10) {
-        setIsExitModalOpen(true);
-      }
-    };
-
-    document.addEventListener('mouseleave', handleMouseLeave);
-    return () => document.removeEventListener('mouseleave', handleMouseLeave);
-  }, [currentView, surveyDismissed]);
-
   // 1. MASTER REMOTE VIEW (Presenter Thumb Controller)
   if (currentView === 'remote') {
     return (
       <PresenterRemoteView
         onSwitchToPresenter={() => setCurrentView('presenter')}
         onExitRemote={() => setCurrentView('presenter')}
+      />
+    );
+  }
+
+  // 1.1 ATTENDEE MOBILE STANDBY SCREEN (If conference activity is not active/started)
+  const isAttendeeView =
+    currentView === 'audience' ||
+    currentView === 'attendee_form1' ||
+    currentView === 'attendee_form2' ||
+    currentView === 'attendee_survey';
+
+  if (isAttendeeView && !isSessionActive) {
+    return (
+      <AttendeeWaitingScreen
+        onSessionActivated={() => {
+          setCurrentView('audience');
+          setIsGatewayModalOpen(true);
+        }}
+        onEnterWithPin={() => {
+          setCurrentView('audience');
+          setIsGatewayModalOpen(true);
+        }}
       />
     );
   }
@@ -154,48 +193,22 @@ export default function App() {
   // 3. ATTENDEE FORM 1 VIEW
   if (currentView === 'attendee_form1') {
     return (
-      <>
-        <AttendeeViewForm1
-          onSwitchToPresenter={() => setCurrentView('presenter')}
-          onGoToForm2={() => setCurrentView('attendee_form2')}
-          onGoToSurvey={() => setCurrentView('attendee_survey')}
-        />
-        <ExitIntentModal
-          isOpen={isExitModalOpen}
-          onClose={() => {
-            setIsExitModalOpen(false);
-            setSurveyDismissed(true);
-          }}
-          onGoToSurvey={() => {
-            setIsExitModalOpen(false);
-            setCurrentView('attendee_survey');
-          }}
-        />
-      </>
+      <AttendeeViewForm1
+        onSwitchToPresenter={() => setCurrentView('presenter')}
+        onGoToForm2={() => setCurrentView('attendee_form2')}
+        onGoToSurvey={() => setCurrentView('attendee_survey')}
+      />
     );
   }
 
   // 4. ATTENDEE FORM 2 VIEW
   if (currentView === 'attendee_form2') {
     return (
-      <>
-        <AttendeeViewForm2
-          onSwitchToPresenter={() => setCurrentView('presenter')}
-          onGoToForm1={() => setCurrentView('attendee_form1')}
-          onGoToSurvey={() => setCurrentView('attendee_survey')}
-        />
-        <ExitIntentModal
-          isOpen={isExitModalOpen}
-          onClose={() => {
-            setIsExitModalOpen(false);
-            setSurveyDismissed(true);
-          }}
-          onGoToSurvey={() => {
-            setIsExitModalOpen(false);
-            setCurrentView('attendee_survey');
-          }}
-        />
-      </>
+      <AttendeeViewForm2
+        onSwitchToPresenter={() => setCurrentView('presenter')}
+        onGoToForm1={() => setCurrentView('attendee_form1')}
+        onGoToSurvey={() => setCurrentView('attendee_survey')}
+      />
     );
   }
 
@@ -209,7 +222,19 @@ export default function App() {
     );
   }
 
-  // 6. MAIN PROJECTOR SCREEN (HOME / AUDITORIO) - STRICT PURE BLACK (#000000)
+  // 6. MAIN PROJECTOR SCREEN (HOME / AUDITORIO) - PRESENTER SESSION LOCK CHECK
+  if (currentView === 'presenter' && !isPresenterAuthed) {
+    return (
+      <PresenterLockScreen
+        onUnlock={() => setIsPresenterAuthed(true)}
+        onGoToAudience={() => {
+          setCurrentView('audience');
+          setIsGatewayModalOpen(true);
+        }}
+      />
+    );
+  }
+
   return (
     <div className="min-h-screen bg-[#000000] flex flex-col justify-between text-white selection:bg-[#FF6105] selection:text-black relative">
       {/* Floating toggle for presentation UI bars (Top Header & Footer) */}
@@ -244,6 +269,7 @@ export default function App() {
           isConnected={isConnected}
           onOpenEmbedModal={() => setIsEmbedModalOpen(true)}
           state={state}
+          onLockSession={() => setIsPresenterAuthed(false)}
         />
       )}
 
@@ -355,6 +381,9 @@ export default function App() {
         isOpen={isEmbedModalOpen}
         onClose={() => setIsEmbedModalOpen(false)}
       />
+
+      {/* In-situ Copy & Content Editor Modal */}
+      <ContentEditorModal />
     </div>
   );
 }

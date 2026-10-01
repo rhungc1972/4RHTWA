@@ -2,6 +2,7 @@ import React from 'react';
 import { AuditoriumQR } from './AuditoriumQR';
 import { AppStateData } from '../types';
 import { ChevronRight } from 'lucide-react';
+import { EditableText } from '../context/ContentContext';
 
 interface Phase1AuditoriumHomeProps {
   state: AppStateData;
@@ -60,20 +61,25 @@ export const Phase1AuditoriumHome: React.FC<Phase1AuditoriumHomeProps> = ({
           <div className="lg:col-span-5 space-y-4">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-neutral-900/80 border border-neutral-800 text-[11px] font-mono-code uppercase tracking-wider text-[#FF6105]">
               <span className="w-1.5 h-1.5 rounded-full bg-[#FF6105] animate-pulse" />
-              <span>Conferencia Magistral · Roberto Hung</span>
+              <EditableText
+                contentKey="phase1_badge"
+                defaultText="Conferencia Magistral · Roberto Hung"
+              />
             </div>
 
-            <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-heading font-extrabold text-white tracking-tight leading-[1.08] drop-shadow-md select-none">
-              ¿Sabes lo que es la{' '}
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-white via-[#FF6105] to-[#FF8038]">
-                tokenización de activos
-              </span>{' '}
-              del mundo real (RWA)?
-            </h1>
+            <EditableText
+              contentKey="phase1_title"
+              defaultText="¿Sabes lo que es la tokenización de activos del mundo real (RWA)?"
+              as="h1"
+              className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-heading font-extrabold text-white tracking-tight leading-[1.08] drop-shadow-md select-none"
+            />
 
-            <p className="text-xs sm:text-sm text-neutral-400 font-mono-code leading-relaxed">
-              Escanea el código con la cámara de tu teléfono para participar en tiempo real desde tu asiento en la sala.
-            </p>
+            <EditableText
+              contentKey="phase1_subtitle"
+              defaultText="Escanea el código con la cámara de tu teléfono para participar en tiempo real desde tu asiento en la sala."
+              as="p"
+              className="text-xs sm:text-sm text-neutral-400 font-mono-code leading-relaxed"
+            />
           </div>
 
           {/* Center Column: Código QR señalado por Roberto Hung */}

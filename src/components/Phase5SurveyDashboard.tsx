@@ -23,8 +23,9 @@ import {
   TrendingUp,
 } from 'lucide-react';
 import { ContemporaryDonutChart, DonutSegment } from './ContemporaryDonutChart';
-import { generateAndDownloadDossierPDF } from '../utils/pdfGenerator';
+import { generateAndDownloadDossierPDF, generateCleanParticipantDossierPDF } from '../utils/pdfGenerator';
 import { resetDatabase, getLocalRawState } from '../services/api';
+import { AdminPinModal } from './AdminPinModal';
 
 interface Phase5Props {
   state: AppStateData;
@@ -43,6 +44,8 @@ export const Phase5SurveyDashboard: React.FC<Phase5Props> = ({ state, onGoToPhas
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const [isResetConfirmOpen, setIsResetConfirmOpen] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
+  const [isAdminPinModalOpen, setIsAdminPinModalOpen] = useState(false);
+  const [cleanDossierDownloading, setCleanDossierDownloading] = useState(false);
 
   // Two Project Photographs (persisted in localStorage across all phases and dossier)
   const [projectPhoto1, setProjectPhoto1] = useState<string>(() => {
@@ -197,6 +200,26 @@ export const Phase5SurveyDashboard: React.FC<Phase5Props> = ({ state, onGoToPhas
       console.error('Error generating PDF:', e);
     } finally {
       setIsGeneratingPdf(false);
+    }
+  };
+
+  const handleDownloadCleanPDF = async () => {
+    setCleanDossierDownloading(true);
+    try {
+      await generateCleanParticipantDossierPDF({
+        appState: state,
+        ratings: {
+          quality: survey.avgQuality,
+          clarity: survey.avgClarity,
+          nps: survey.avgNps,
+        },
+        projectPhoto1,
+        projectPhoto2,
+      });
+    } catch (e) {
+      console.error('Error generating clean PDF:', e);
+    } finally {
+      setCleanDossierDownloading(false);
     }
   };
 
@@ -776,12 +799,23 @@ export const Phase5SurveyDashboard: React.FC<Phase5Props> = ({ state, onGoToPhas
         {/* Buttons: Download Dossier & Reset */}
         <div className="flex flex-wrap items-center justify-center gap-3 pt-3 border-t border-neutral-900">
           <button
-            onClick={handleDownloadPDF}
+            onClick={handleDownloadCleanPDF}
+            disabled={cleanDossierDownloading}
+            className="px-5 py-3 rounded-xl bg-neutral-900 hover:bg-neutral-800 text-white border border-neutral-700 font-heading font-bold text-xs uppercase tracking-wider transition-all flex items-center gap-2 shadow-md cursor-pointer disabled:opacity-50"
+            title="Descargar infografía consolidada sin datos privados de participantes"
+          >
+            <Download className="w-4 h-4 text-[#FF6105]" />
+            <span>Descargar Infografía de Sala (Zero PII)</span>
+          </button>
+
+          <button
+            onClick={() => setIsAdminPinModalOpen(true)}
             disabled={isGeneratingPdf}
             className="px-6 py-3 rounded-xl bg-[#FF6105] hover:bg-[#ff7524] text-black font-heading font-bold text-xs uppercase tracking-wider transition-all flex items-center gap-2 shadow-md cursor-pointer disabled:opacity-50"
+            title="Descargar informe completo con lista de asistentes (Requiere clave)"
           >
             <Download className="w-4 h-4" />
-            <span>Descargar Dossier Oficial Completo (PDF)</span>
+            <span>Descargar Informe de Asistentes (PDF)</span>
           </button>
 
           <button
@@ -793,6 +827,13 @@ export const Phase5SurveyDashboard: React.FC<Phase5Props> = ({ state, onGoToPhas
           </button>
         </div>
       </div>
+
+      {/* Admin Pin Confirmation Modal */}
+      <AdminPinModal
+        isOpen={isAdminPinModalOpen}
+        onClose={() => setIsAdminPinModalOpen(false)}
+        onSuccess={handleDownloadPDF}
+      />
 
       {/* Modal Confirm Reset */}
       {isResetConfirmOpen && (

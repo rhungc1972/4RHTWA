@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { submitSurvey } from '../services/api';
+import { submitSurvey, useRealtimeState } from '../services/api';
 import confetti from 'canvas-confetti';
 import {
   Star,
@@ -23,9 +23,11 @@ import {
   ChevronDown,
   ChevronUp,
   Sparkles,
+  ExternalLink,
 } from 'lucide-react';
 import { validateYearPin, getYearPin } from '../utils/securityPins';
 import { DossierDownloadModal } from './DossierDownloadModal';
+import { generateCleanParticipantDossierPDF } from '../utils/pdfGenerator';
 
 interface AttendeeViewSurveyProps {
   onSwitchToPresenter?: () => void;
@@ -64,19 +66,22 @@ export const AttendeeViewSurvey: React.FC<AttendeeViewSurveyProps> = ({
   onSwitchToPresenter,
   onGoToForms,
 }) => {
-  // Gatekeeper check: is Survey unlocked?
+  const { state } = useRealtimeState();
+
+  // Gatekeeper check: is Survey unlocked with Year Pin?
   const [isUnlocked, setIsUnlocked] = useState<boolean>(() => {
     try {
-      const authRole = sessionStorage.getItem('rwa_authenticated_role');
       const surveyGate = sessionStorage.getItem('rwa_gate_survey_unlocked');
-      return authRole === 'audience' || authRole === 'presenter' || surveyGate === 'true';
+      return surveyGate === 'true';
     } catch {
-      return true; // Default accessible for attendees in session
+      return false;
     }
   });
 
   const [pinInput, setPinInput] = useState('');
   const [pinError, setPinError] = useState('');
+  const [cleanDossierDownloading, setCleanDossierDownloading] = useState(false);
+  const [cleanDossierSuccess, setCleanDossierSuccess] = useState(false);
 
   // Attendee profile state
   const [name, setName] = useState('');
@@ -124,13 +129,13 @@ export const AttendeeViewSurvey: React.FC<AttendeeViewSurveyProps> = ({
   const handleUnlockSurvey = (e: React.FormEvent) => {
     e.preventDefault();
     setPinError('');
-    if (validateYearPin(pinInput) || pinInput.trim() === '2089227' || pinInput.trim() === String(new Date().getDate())) {
+    if (validateYearPin(pinInput)) {
       setIsUnlocked(true);
       try {
         sessionStorage.setItem('rwa_gate_survey_unlocked', 'true');
       } catch {}
     } else {
-      setPinError('Clave incorrecta. Por favor introduzca la clave de la sala.');
+      setPinError(`Clave incorrecta. Ingrese los dos últimos dígitos del año en curso (${getYearPin()}).`);
     }
   };
 
@@ -461,20 +466,67 @@ export const AttendeeViewSurvey: React.FC<AttendeeViewSurveyProps> = ({
               “Agradecemos profundamente su activa participación en esta sesión de inmersión en la economía tokenizada.”
             </p>
 
-            <div className="pt-2">
+            <div className="space-y-3 pt-2">
+              <button
+                onClick={async () => {
+                  setCleanDossierDownloading(true);
+                  try {
+                    await generateCleanParticipantDossierPDF({
+                      appState: state,
+                      ratings: {
+                        quality: ratingQuality ?? undefined,
+                        clarity: ratingClarity ?? undefined,
+                        nps: npsScore ?? undefined,
+                      },
+                    });
+                    setCleanDossierSuccess(true);
+                    setTimeout(() => setCleanDossierSuccess(false), 3000);
+                  } catch (e) {
+                    console.error('Error generating clean PDF:', e);
+                  } finally {
+                    setCleanDossierDownloading(false);
+                  }
+                }}
+                disabled={cleanDossierDownloading}
+                className="w-full py-4 px-4 bg-[#FF6105] hover:bg-[#ff7524] text-black font-heading font-bold text-sm uppercase tracking-wider rounded-xl transition-all shadow-[0_0_25px_rgba(255,97,5,0.35)] flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+              >
+                {cleanDossierSuccess ? (
+                  <>
+                    <Check className="w-4 h-4 stroke-[3]" />
+                    <span>¡Infografía Descargada!</span>
+                  </>
+                ) : (
+                  <>
+                    <Download className="w-4 h-4 stroke-[2.5]" />
+                    <span>Descargar Infografía Oficial de la Sala (Zero PII)</span>
+                  </>
+                )}
+              </button>
+
               <button
                 onClick={() => setDossierModalOpen(true)}
-                className="w-full py-4 px-4 bg-[#FF6105] hover:bg-[#ff7524] text-black font-heading font-bold text-sm uppercase tracking-wider rounded-xl transition-all shadow-[0_0_25px_rgba(255,97,5,0.35)] flex items-center justify-center gap-2 cursor-pointer"
+                className="w-full py-3 px-4 bg-neutral-950 hover:bg-neutral-900 text-neutral-300 hover:text-white border border-neutral-800 text-xs font-mono-code font-bold uppercase rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer"
               >
-                <Download className="w-4 h-4 stroke-[2.5]" />
-                <span>Descargar Dossier Ejecutivo en PDF</span>
+                <FileText className="w-4 h-4 text-[#FF6105]" />
+                <span>Ver Ejemplar Personalizado de Participación</span>
               </button>
+
+              {/* Prominent external link to official website */}
+              <a
+                href="https://www.robertohung.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full py-3.5 px-4 bg-gradient-to-r from-neutral-900 to-neutral-950 hover:from-neutral-800 hover:to-neutral-900 text-white font-heading font-bold text-xs uppercase tracking-wider rounded-xl transition-all border border-[#FF6105]/40 flex items-center justify-center gap-2 shadow-lg group"
+              >
+                <span>Conoce Más en www.robertohung.com</span>
+                <ExternalLink className="w-4 h-4 text-[#FF6105] group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
+              </a>
             </div>
 
             {onGoToForms && (
               <button
                 onClick={onGoToForms}
-                className="text-xs text-neutral-400 hover:text-white underline cursor-pointer pt-2"
+                className="text-xs text-neutral-500 hover:text-neutral-300 underline cursor-pointer pt-1 block mx-auto"
               >
                 Volver a la simulación inicial
               </button>

@@ -29,12 +29,11 @@ export const AttendeeViewForm2: React.FC<AttendeeViewForm2Props> = ({
   onGoToForm1,
   onGoToSurvey,
 }) => {
-  // Gatekeeper check: is Form 2 unlocked?
+  // Gatekeeper check: is Form 2 unlocked with Month Pin?
   const [isUnlocked, setIsUnlocked] = useState<boolean>(() => {
     try {
-      const authRole = sessionStorage.getItem('rwa_authenticated_role');
       const form2Gate = sessionStorage.getItem('rwa_gate_form2_unlocked');
-      return authRole === 'audience' || authRole === 'presenter' || form2Gate === 'true';
+      return form2Gate === 'true';
     } catch {
       return false;
     }
@@ -85,13 +84,13 @@ export const AttendeeViewForm2: React.FC<AttendeeViewForm2Props> = ({
   const handleUnlockForm2 = (e: React.FormEvent) => {
     e.preventDefault();
     setPinError('');
-    if (validateMonthPin(pinInput) || pinInput.trim() === '2089227' || pinInput.trim() === String(new Date().getDate())) {
+    if (validateMonthPin(pinInput)) {
       setIsUnlocked(true);
       try {
         sessionStorage.setItem('rwa_gate_form2_unlocked', 'true');
       } catch {}
     } else {
-      setPinError('Clave incorrecta. Por favor introduzca la clave indicada en sala.');
+      setPinError(`Clave incorrecta. Introduzca el número del mes en curso indicado en la sala (Mes actual: ${getMonthPin()}).`);
     }
   };
 
@@ -158,9 +157,7 @@ export const AttendeeViewForm2: React.FC<AttendeeViewForm2Props> = ({
   };
 
   const handleContinueToSurvey = () => {
-    try {
-      sessionStorage.setItem('rwa_gate_survey_unlocked', 'true');
-    } catch {}
+    // Leave survey locked so attendee enters the year pin on next step
     if (onGoToSurvey) onGoToSurvey();
   };
 
@@ -174,24 +171,31 @@ export const AttendeeViewForm2: React.FC<AttendeeViewForm2Props> = ({
               <Lock className="w-7 h-7 stroke-[2.2]" />
             </div>
 
-            <h2 className="text-2xl font-heading font-bold text-white uppercase tracking-tight">
-              Suscripción de Tokens RWA
-            </h2>
-            <p className="text-xs text-neutral-400 mt-1 mb-5">
-              Ingrese la clave del día indicada por el ponente en la sala:
-            </p>
+            <div className="space-y-1 mb-5">
+              <span className="text-[10px] font-mono-code uppercase tracking-widest text-[#FF6105] font-bold">
+                FASE 2 · SUSCRIPCIÓN RWA
+              </span>
+              <h2 className="text-2xl font-heading font-bold text-white uppercase tracking-tight">
+                Suscripción de Tokens RWA
+              </h2>
+              <p className="text-xs text-neutral-400 mt-1">
+                Ingrese la clave del mes en curso ({getMonthName()}) anunciada en la sala:
+              </p>
+            </div>
 
             <form onSubmit={handleUnlockForm2} className="space-y-4">
               <input
                 type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
                 maxLength={7}
                 value={pinInput}
                 onChange={(e) => {
-                  setPinInput(e.target.value);
+                  setPinInput(e.target.value.replace(/[^0-9]/g, ''));
                   setPinError('');
                 }}
-                placeholder="Clave de Sala"
-                className="w-full text-center py-3.5 px-4 bg-neutral-950 border-2 border-neutral-700 focus:border-[#FF6105] rounded-xl text-2xl font-mono-code font-bold tracking-widest text-white outline-hidden"
+                placeholder={`Clave del Mes (ej. ${getMonthPin()})`}
+                className="w-full text-center py-3.5 px-4 bg-neutral-950 border-2 border-neutral-700 focus:border-[#FF6105] rounded-xl text-2xl font-mono-code font-bold tracking-widest text-white outline-hidden placeholder:text-neutral-700"
                 autoFocus
               />
 

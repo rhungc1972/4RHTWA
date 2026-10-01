@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import QRCode from 'qrcode';
 import { ExternalLink, Copy, Check, QrCode, KeyRound } from 'lucide-react';
-import { getMonthPin, getYearPin } from '../utils/securityPins';
+import { getDayPin, getMonthPin, getYearPin } from '../utils/securityPins';
 
 interface QRCodeCardProps {
   viewTarget: 'welcome' | 'form1' | 'form2' | 'survey';
@@ -23,10 +23,10 @@ export const QRCodeCard: React.FC<QRCodeCardProps> = ({
   const [qrUrl, setQrUrl] = useState('');
 
   const pinRequired =
-    viewTarget === 'welcome'
-      ? 'DICTADA EN SALA'
+    viewTarget === 'welcome' || viewTarget === 'form1'
+      ? getDayPin()
       : viewTarget === 'form2'
-      ? null
+      ? getMonthPin()
       : viewTarget === 'survey'
       ? getYearPin()
       : null;

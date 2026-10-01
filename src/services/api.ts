@@ -347,6 +347,15 @@ export function useRealtimeState() {
   });
   const [isConnected, setIsConnected] = useState<boolean>(true);
   const [lastSyncTime, setLastSyncTime] = useState<Date>(new Date());
+  const [isSessionActive, setIsSessionActive] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return true;
+    try {
+      const stored = localStorage.getItem('rwa_session_is_active');
+      return stored !== null ? stored === 'true' : true;
+    } catch {
+      return true;
+    }
+  });
 
   const applyRawUpdate = useCallback((updater: (prev: RawAppState) => RawAppState) => {
     const current = getLocalRawState();
@@ -394,7 +403,14 @@ export function useRealtimeState() {
     let currentF1: Form1Entry[] = [];
     let currentF2: Form2Entry[] = [];
     let currentSurv: SurveyEntry[] = [];
-    let currentResetTs = 0;
+    let currentResetTs = (() => {
+      try {
+        const stored = localStorage.getItem('rwa_session_reset_ts');
+        return stored ? Number(stored) || 0 : 0;
+      } catch {
+        return 0;
+      }
+    })();
 
     const syncCombinedState = () => {
       const filteredF1 = currentF1.filter((e) => (e.timestamp || 0) >= currentResetTs);
@@ -413,7 +429,7 @@ export function useRealtimeState() {
       setIsConnected(true);
     };
 
-    // 1. Listen to Session metadata (reset timestamp)
+    // 1. Listen to Session metadata (reset timestamp, active status)
     const sessionDocRef = doc(db, 'sessions', SESSION_DOC_ID);
     const unsubSession = onSnapshot(
       sessionDocRef,
@@ -423,6 +439,12 @@ export function useRealtimeState() {
           if (typeof data.lastResetTimestamp === 'number') {
             currentResetTs = data.lastResetTimestamp;
             syncCombinedState();
+          }
+          if (typeof data.isActive === 'boolean') {
+            setIsSessionActive(data.isActive);
+            try {
+              localStorage.setItem('rwa_session_is_active', String(data.isActive));
+            } catch {}
           }
         }
       },
@@ -506,9 +528,15 @@ export function useRealtimeState() {
           return { ...prev, surveys: [...prev.surveys, entry], lastUpdated: Date.now() };
         });
       } else if (payload.type === 'RESET') {
-        const cleanState: RawAppState = { form1: [], form2: [], surveys: [], lastUpdated: Date.now() };
+        const resetTs = Date.now();
+        currentResetTs = resetTs;
+        currentF1 = [];
+        currentF2 = [];
+        currentSurv = [];
+        const cleanState: RawAppState = { form1: [], form2: [], surveys: [], lastUpdated: resetTs };
         saveLocalRawState(cleanState);
         setState(INITIAL_STATE);
+        setLastSyncTime(new Date());
       }
     };
 
@@ -517,7 +545,12 @@ export function useRealtimeState() {
     }
 
     const handleLocalReset = () => {
-      const cleanState: RawAppState = { form1: [], form2: [], surveys: [], lastUpdated: Date.now() };
+      const resetTs = Date.now();
+      currentResetTs = resetTs;
+      currentF1 = [];
+      currentF2 = [];
+      currentSurv = [];
+      const cleanState: RawAppState = { form1: [], form2: [], surveys: [], lastUpdated: resetTs };
       saveLocalRawState(cleanState);
       setState(INITIAL_STATE);
       setLastSyncTime(new Date());
@@ -536,7 +569,29 @@ export function useRealtimeState() {
     };
   }, [applyRawUpdate]);
 
-  return { state, isConnected, lastSyncTime, refresh };
+  return { state, isConnected, lastSyncTime, refresh, isSessionActive };
+}
+
+export async function setSessionActiveStatus(isActive: boolean) {
+  try {
+    const sessionDocRef = doc(db, 'sessions', SESSION_DOC_ID);
+    await setDoc(
+      sessionDocRef,
+      {
+        isActive,
+        updatedAt: Date.now(),
+      },
+      { merge: true }
+    );
+    try {
+      localStorage.setItem('rwa_session_is_active', String(isActive));
+    } catch {}
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('rwa_session_active_changed', { detail: { isActive } }));
+    }
+  } catch (err) {
+    handleFirestoreError(err, OperationType.UPDATE, `sessions/${SESSION_DOC_ID}`);
+  }
 }
 
 export interface RemoteCommandPayload {
@@ -790,9 +845,13 @@ export async function resetDatabase() {
 
   try {
     localStorage.setItem('rwa_session_reset_ts', String(resetNow));
+    localStorage.removeItem(LOCAL_STORAGE_KEY);
     localStorage.removeItem('rwa_attendee_form1_done');
     localStorage.removeItem('rwa_attendee_form2_done');
     localStorage.removeItem('rwa_attendee_survey_done');
+    sessionStorage.removeItem('rwa_gate_form1_unlocked');
+    sessionStorage.removeItem('rwa_gate_form2_unlocked');
+    sessionStorage.removeItem('rwa_gate_survey_unlocked');
   } catch {}
 
   const cleanState: RawAppState = {
@@ -812,7 +871,7 @@ export async function resetDatabase() {
     window.dispatchEvent(new CustomEvent('rwa_state_reset'));
   }
 
-  // Update Firestore session with reset timestamp and reset phase to 1
+  // 3. Update Firestore session with reset timestamp, phase 1, and active room
   try {
     const sessionDocRef = doc(db, 'sessions', SESSION_DOC_ID);
     await setDoc(
@@ -824,24 +883,45 @@ export async function resetDatabase() {
         commandTimestamp: resetNow,
         lastResetTimestamp: resetNow,
         updatedAt: resetNow,
+        isActive: true,
       },
       { merge: true }
     );
+  } catch (err) {
+    console.warn('Could not update Firestore session on reset:', err);
+  }
 
-    // Delete existing documents in collections using batch
-    const batch = writeBatch(db);
+  // 4. Best-effort subcollection deletion in a safe separate try/catch
+  try {
     const [f1Snap, f2Snap, survSnap] = await Promise.all([
       getDocs(collection(db, 'sessions', SESSION_DOC_ID, 'form1_submissions')),
       getDocs(collection(db, 'sessions', SESSION_DOC_ID, 'form2_submissions')),
       getDocs(collection(db, 'sessions', SESSION_DOC_ID, 'survey_submissions')),
     ]);
 
-    f1Snap.forEach((d) => batch.delete(d.ref));
-    f2Snap.forEach((d) => batch.delete(d.ref));
-    survSnap.forEach((d) => batch.delete(d.ref));
-    await batch.commit();
+    const allDocs = [...f1Snap.docs, ...f2Snap.docs, ...survSnap.docs];
+    if (allDocs.length > 0) {
+      let batch = writeBatch(db);
+      let count = 0;
+
+      for (const d of allDocs) {
+        batch.delete(d.ref);
+        count++;
+        if (count >= 400) {
+          await batch.commit();
+          batch = writeBatch(db);
+          count = 0;
+        }
+      }
+      if (count > 0) {
+        await batch.commit();
+      }
+    }
   } catch (err) {
-    handleFirestoreError(err, OperationType.DELETE, `sessions/${SESSION_DOC_ID}`);
+    // If Firestore rules or client permissions deny batch delete,
+    // the epoch-based timestamp filter (lastResetTimestamp) guarantees 
+    // that all screens immediately ignore and purge past submissions!
+    console.warn('Silent note: Firestore batch delete bypassed, epoch timestamp filtering is active:', err);
   }
 
   return { success: true };

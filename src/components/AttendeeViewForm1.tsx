@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { submitForm1 } from '../services/api';
 import { ShieldAlert, CheckCircle2, User, Mail, DollarSign, ArrowRight, Lock, KeyRound, Sparkles } from 'lucide-react';
 import { AccessGateModal } from './AccessGateModal';
+import { validateDayPin, getDayPin, PRESENTER_MASTER_PIN } from '../utils/securityPins';
 
 interface AttendeeViewForm1Props {
   onSwitchToPresenter?: () => void;
@@ -14,6 +15,19 @@ export const AttendeeViewForm1: React.FC<AttendeeViewForm1Props> = ({
   onGoToForm2,
   onGoToSurvey,
 }) => {
+  const [isUnlocked, setIsUnlocked] = useState<boolean>(() => {
+    try {
+      const authRole = sessionStorage.getItem('rwa_authenticated_role');
+      const form1Gate = sessionStorage.getItem('rwa_gate_form1_unlocked');
+      return authRole === 'audience' || authRole === 'presenter' || form1Gate === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  const [pinInput, setPinInput] = useState('');
+  const [pinError, setPinError] = useState('');
+
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   // All choices start completely unselected by default
@@ -29,6 +43,20 @@ export const AttendeeViewForm1: React.FC<AttendeeViewForm1Props> = ({
   // Gatekeeper states
   const [gateModalOpen, setGateModalOpen] = useState(false);
   const [gateTarget, setGateTarget] = useState<'form2' | 'survey' | 'presenter'>('form2');
+
+  const handleUnlockForm1 = (e: React.FormEvent) => {
+    e.preventDefault();
+    setPinError('');
+    if (validateDayPin(pinInput)) {
+      setIsUnlocked(true);
+      try {
+        sessionStorage.setItem('rwa_gate_form1_unlocked', 'true');
+        sessionStorage.setItem('rwa_authenticated_role', 'audience');
+      } catch {}
+    } else {
+      setPinError('Clave no válida. Ingrese el número del día actual indicado en la sala.');
+    }
+  };
 
   // Pre-load from localStorage if previously entered
   useEffect(() => {
@@ -100,6 +128,67 @@ export const AttendeeViewForm1: React.FC<AttendeeViewForm1Props> = ({
       onGoToForm2();
     }
   };
+
+  if (!isUnlocked) {
+    return (
+      <div className="min-h-screen bg-[#000000] text-white flex flex-col justify-between py-8 px-4 sm:px-6">
+        <div className="w-full max-w-md mx-auto my-auto">
+          <div className="bg-[#0A0A0A] border border-neutral-800 rounded-3xl p-6 sm:p-8 shadow-2xl text-center space-y-5">
+            <div className="w-14 h-14 bg-[#FF6105]/10 border border-[#FF6105]/30 rounded-2xl flex items-center justify-center mx-auto text-[#FF6105]">
+              <Lock className="w-7 h-7" />
+            </div>
+
+            <div className="space-y-1">
+              <span className="text-[10px] font-mono-code uppercase tracking-widest text-[#FF6105] font-bold">
+                FASE 1 · DIAGNÓSTICO DE CAPITAL
+              </span>
+              <h2 className="text-xl sm:text-2xl font-heading font-bold text-white uppercase tracking-tight">
+                Acceso a la Simulación
+              </h2>
+              <p className="text-xs text-neutral-400 font-mono-code pt-1">
+                Ingrese la clave numérica del día anunciada por Roberto en la sala.
+              </p>
+            </div>
+
+            <form onSubmit={handleUnlockForm1} className="space-y-4">
+              <div>
+                <input
+                  type="password"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  maxLength={7}
+                  placeholder={`Clave del Día (ej. ${getDayPin()})`}
+                  value={pinInput}
+                  onChange={(e) => {
+                    setPinInput(e.target.value.replace(/[^0-9]/g, ''));
+                    setPinError('');
+                  }}
+                  className="w-full text-center py-3.5 px-4 bg-black border-2 border-neutral-800 focus:border-[#FF6105] rounded-xl text-xl font-mono-code font-bold tracking-widest text-white outline-hidden placeholder:text-neutral-700"
+                  autoFocus
+                />
+              </div>
+
+              {pinError && (
+                <div className="p-2.5 bg-red-950/60 border border-red-800 text-red-300 text-xs rounded-xl flex items-center gap-2 text-left">
+                  <ShieldAlert className="w-4 h-4 shrink-0 text-red-400" />
+                  <span>{pinError}</span>
+                </div>
+              )}
+
+              <button
+                type="submit"
+                disabled={!pinInput}
+                className="w-full py-3.5 px-4 bg-[#FF6105] hover:bg-[#ff7524] text-black font-heading font-bold text-sm uppercase tracking-wider rounded-xl transition-all shadow-md disabled:opacity-40 cursor-pointer flex items-center justify-center gap-2"
+              >
+                <span>Desbloquear Formulario</span>
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            </form>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#000000] text-white flex flex-col justify-between py-6 px-4 sm:px-6">
