@@ -1,5 +1,6 @@
 import React from 'react';
 import { AppStateData } from '../types';
+import { EditableText } from '../context/ContentContext';
 import {
   Vote,
   Coins,
@@ -86,19 +87,29 @@ export const Phase4Democratization: React.FC<Phase4Props> = ({ state, onGoToPhas
       {/* Slide Header with High-Impact Auditorium Typography */}
       <div>
         <div className="flex items-center gap-2 mb-2">
-          <span className="px-3 py-1 rounded-full text-xs font-mono-code uppercase tracking-wider bg-neutral-900 text-[#FF6105] border border-neutral-800">
-            Fase 4 de 5 · Estudio Comparativo & Pilares Doctrinales
-          </span>
-          <span className="text-xs text-neutral-500 font-mono-code">
-            #ElDerechoDeHacerRuido · Roberto Hung Cavalieri
-          </span>
+          <EditableText
+            contentKey="phase4_badge"
+            defaultText="Fase 4 de 5 · Estudio Comparativo & Pilares Doctrinales"
+            className="px-3 py-1 rounded-full text-xs font-mono-code uppercase tracking-wider bg-neutral-900 text-[#FF6105] border border-neutral-800"
+          />
+          <EditableText
+            contentKey="phase4_hashtag"
+            defaultText="#ElDerechoDeHacerRuido · Roberto Hung Cavalieri"
+            className="text-xs text-neutral-500 font-mono-code"
+          />
         </div>
-        <h2 className="text-3xl sm:text-5xl lg:text-6xl font-heading font-extrabold uppercase tracking-tight text-white leading-tight">
-          Comparativa: <span className="text-red-500">Tradicional</span> vs <span className="text-[#FF6105]">Tokenizado RWA</span>
-        </h2>
-        <p className="text-sm sm:text-base text-neutral-400 mt-2 max-w-4xl leading-relaxed font-body">
-          Contraste empírico entre el esquema tradicional bancario-notarial y el protocolo de tokenización fraccionada con base en los datos reales del auditorio.
-        </p>
+        <EditableText
+          contentKey="phase4_title"
+          defaultText="Comparativa: Modelo Tradicional vs Tokenizado RWA"
+          as="h2"
+          className="text-3xl sm:text-5xl lg:text-6xl font-heading font-extrabold uppercase tracking-tight text-white leading-tight"
+        />
+        <EditableText
+          contentKey="phase4_subtitle"
+          defaultText="Contraste empírico entre el esquema tradicional bancario-notarial y el protocolo de tokenización fraccionada con base en los datos reales del auditorio."
+          as="p"
+          className="text-sm sm:text-base text-neutral-400 mt-2 max-w-4xl leading-relaxed font-body block"
+        />
       </div>
 
       {/* TOP COMPARISON: Side-by-Side (Traditional on Left, Tokenized RWA on Right) */}
@@ -113,13 +124,18 @@ export const Phase4Democratization: React.FC<Phase4Props> = ({ state, onGoToPhas
             <div className="flex items-center justify-between border-b border-neutral-800 pb-3.5">
               <div className="flex items-center gap-2.5">
                 <AlertTriangle className="w-6 h-6 text-red-500 shrink-0" />
-                <h3 className="text-xl sm:text-2xl font-heading font-extrabold uppercase text-white tracking-wide">
-                  Modelo Tradicional (Cerrado)
-                </h3>
+                <EditableText
+                  contentKey="phase4_trad_title"
+                  defaultText="Modelo Tradicional (Cerrado)"
+                  as="h3"
+                  className="text-xl sm:text-2xl font-heading font-extrabold uppercase text-white tracking-wide"
+                />
               </div>
-              <span className="px-3 py-1 rounded-full bg-red-950/80 border border-red-800 text-red-400 font-mono-code text-xs font-bold shrink-0">
-                Ticket: &ge; $10.000 USD
-              </span>
+              <EditableText
+                contentKey="phase4_trad_ticket"
+                defaultText="Ticket: ≥ $10.000 USD"
+                className="px-3 py-1 rounded-full bg-red-950/80 border border-red-800 text-red-400 font-mono-code text-xs font-bold shrink-0"
+              />
             </div>
 
             {/* Highlighted Numbers: Participants & Excluded */}
@@ -206,13 +222,18 @@ export const Phase4Democratization: React.FC<Phase4Props> = ({ state, onGoToPhas
             <div className="flex items-center justify-between border-b border-neutral-800 pb-3.5">
               <div className="flex items-center gap-2.5">
                 <CheckCircle2 className="w-6 h-6 text-emerald-400 shrink-0" />
-                <h3 className="text-xl sm:text-2xl font-heading font-extrabold uppercase text-white tracking-wide">
-                  Modelo Tokenizado RWA (Abierto)
-                </h3>
+                <EditableText
+                  contentKey="phase4_rwa_title"
+                  defaultText="Modelo Tokenizado RWA (Abierto)"
+                  as="h3"
+                  className="text-xl sm:text-2xl font-heading font-extrabold uppercase text-white tracking-wide"
+                />
               </div>
-              <span className="px-3 py-1 rounded-full bg-emerald-950/80 border border-emerald-800 text-emerald-400 font-mono-code text-xs font-bold shrink-0">
-                Ticket: Desde $10 USD
-              </span>
+              <EditableText
+                contentKey="phase4_rwa_ticket"
+                defaultText="Ticket: Desde $10 USD"
+                className="px-3 py-1 rounded-full bg-emerald-950/80 border border-emerald-800 text-emerald-400 font-mono-code text-xs font-bold shrink-0"
+              />
             </div>
 
             {/* Highlighted Numbers: Participants & 0% Excluded */}
@@ -312,6 +333,10 @@ export const Phase4Democratization: React.FC<Phase4Props> = ({ state, onGoToPhas
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
           {pillars.map((pillar) => {
             const Icon = pillar.icon;
+            const titleKey = `phase4_p${pillar.id}_title`;
+            const descKey = `phase4_p${pillar.id}_desc`;
+            const legalKey = `phase4_p${pillar.id}_legal`;
+
             return (
               <div
                 key={pillar.id}
@@ -322,21 +347,30 @@ export const Phase4Democratization: React.FC<Phase4Props> = ({ state, onGoToPhas
                     <div className="w-10 h-10 rounded-xl bg-[#FF6105]/15 border border-[#FF6105]/30 flex items-center justify-center text-[#FF6105] shrink-0 group-hover:bg-[#FF6105] group-hover:text-black transition-colors">
                       <Icon className="w-5 h-5" />
                     </div>
-                    <h4 className="text-sm font-heading font-bold uppercase text-white tracking-wide">
-                      {pillar.title}
-                    </h4>
+                    <EditableText
+                      contentKey={titleKey}
+                      defaultText={pillar.title}
+                      as="h4"
+                      className="text-sm font-heading font-bold uppercase text-white tracking-wide"
+                    />
                   </div>
                   <span className="text-xs font-mono-code font-bold text-neutral-600 group-hover:text-[#FF6105]">
                     {pillar.num}
                   </span>
                 </div>
 
-                <p className="text-xs text-neutral-300 leading-relaxed font-body">
-                  {pillar.summary}
-                </p>
+                <EditableText
+                  contentKey={descKey}
+                  defaultText={pillar.summary}
+                  as="p"
+                  className="text-xs text-neutral-300 leading-relaxed font-body"
+                />
 
                 <div className="pt-2.5 border-t border-neutral-900 text-[11px] font-mono-code text-[#FF6105]">
-                  {pillar.legalBasis}
+                  <EditableText
+                    contentKey={legalKey}
+                    defaultText={pillar.legalBasis}
+                  />
                 </div>
               </div>
             );

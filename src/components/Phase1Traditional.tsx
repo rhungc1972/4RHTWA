@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { QRCodeCard } from './QRCodeCard';
 import { AppStateData } from '../types';
+import { EditableText } from '../context/ContentContext';
 import {
   Sparkles,
   Camera,
@@ -85,12 +86,16 @@ export const Phase1Traditional: React.FC<Phase1TraditionalProps> = ({ state }) =
       {/* Top Banner Tag */}
       <div className="flex items-center justify-between mb-4 pb-2 border-b border-neutral-800">
         <div className="flex items-center gap-2">
-          <span className="px-3 py-1 rounded bg-[#FF6105] text-black text-[11px] font-mono-code font-bold uppercase tracking-wider">
-            CONFERENCIA MAGISTRAL · APERTURA
-          </span>
-          <span className="text-neutral-400 text-xs font-mono-code hidden sm:inline">
-            Roberto Hung Cavalieri
-          </span>
+          <EditableText
+            contentKey="phase1_badge"
+            defaultText="CONFERENCIA MAGISTRAL · APERTURA"
+            className="px-3 py-1 rounded bg-[#FF6105] text-black text-[11px] font-mono-code font-bold uppercase tracking-wider"
+          />
+          <EditableText
+            contentKey="phase1_speaker"
+            defaultText="Roberto Hung Cavalieri"
+            className="text-neutral-400 text-xs font-mono-code hidden sm:inline"
+          />
         </div>
 
         <a
@@ -99,7 +104,10 @@ export const Phase1Traditional: React.FC<Phase1TraditionalProps> = ({ state }) =
           rel="noopener noreferrer"
           className="text-xs font-mono-code text-[#FF6105] hover:text-[#ff7524] transition-colors flex items-center gap-1"
         >
-          <span>www.robertohung.com</span>
+          <EditableText
+            contentKey="phase1_link"
+            defaultText="www.robertohung.com"
+          />
           <ExternalLink className="w-3.5 h-3.5" />
         </a>
       </div>
@@ -115,21 +123,26 @@ export const Phase1Traditional: React.FC<Phase1TraditionalProps> = ({ state }) =
             <div>
               <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-neutral-900 border border-neutral-700 text-[#FF6105] text-xs font-mono-code font-semibold uppercase tracking-wider mb-4">
                 <Sparkles className="w-3.5 h-3.5 text-[#FF6105]" />
-                <span>Experiencia Interactiva en Tiempo Real</span>
+                <EditableText
+                  contentKey="phase1_tagline"
+                  defaultText="Experiencia Interactiva en Tiempo Real"
+                />
               </div>
 
               {/* The Grand Central Headline specified by user */}
-              <h1 className="text-3xl sm:text-4xl lg:text-5xl xl:text-6xl font-display uppercase tracking-tight text-white leading-[1.08]">
-                ¿Sabes lo que es la{' '}
-                <span className="text-[#FF6105] underline decoration-[#FF6105]/40 underline-offset-8">
-                  tokenización
-                </span>{' '}
-                de activos del mundo real (RWA)?
-              </h1>
+              <EditableText
+                contentKey="phase1_title"
+                defaultText="¿Sabes lo que es la tokenización de activos del mundo real (RWA)?"
+                as="h1"
+                className="text-3xl sm:text-4xl lg:text-5xl xl:text-6xl font-display uppercase tracking-tight text-white leading-[1.08] block"
+              />
 
-              <p className="text-sm sm:text-base text-neutral-300 mt-4 leading-relaxed font-sans max-w-2xl">
-                Roberto Hung desarrolló esta experiencia interactiva para generar iniciales reflexiones sobre el fenómeno de la tokenización de activos de la vida real (<strong className="text-white font-mono-code">RWA</strong>). Conecte su teléfono móvil desde su asiento para participar en la simulación.
-              </p>
+              <EditableText
+                contentKey="phase1_subtitle"
+                defaultText="Roberto Hung desarrolló esta experiencia interactiva para generar iniciales reflexiones sobre el fenómeno de la tokenización de activos de la vida real (RWA). Conecte su teléfono móvil desde su asiento para participar en la simulación."
+                as="p"
+                className="text-sm sm:text-base text-neutral-300 mt-4 leading-relaxed font-sans max-w-2xl block"
+              />
             </div>
 
             {/* QR CODE CARD: High Contrast, Prominent, Clear Instructions */}

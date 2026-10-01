@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { AppStateData } from '../types';
+import { EditableText } from '../context/ContentContext';
 import {
   Cpu,
   Sparkles,
@@ -101,19 +102,29 @@ export const Phase3Tokenization: React.FC<Phase3Props> = ({ state }) => {
       {/* Slide Header with Large Typography */}
       <div>
         <div className="flex items-center gap-2 mb-2">
-          <span className="px-3 py-1 rounded-full text-xs font-mono-code uppercase tracking-wider bg-neutral-900 text-[#FF6105] border border-neutral-800">
-            Fase 3 de 5 · Arquitectura del Protocolo RWA
-          </span>
-          <span className="text-xs text-neutral-500 font-mono-code">
-            #ElDerechoDeHacerRuido · Roberto Hung Cavalieri
-          </span>
+          <EditableText
+            contentKey="phase3_badge"
+            defaultText="Fase 3 de 5 · Arquitectura del Protocolo RWA"
+            className="px-3 py-1 rounded-full text-xs font-mono-code uppercase tracking-wider bg-neutral-900 text-[#FF6105] border border-neutral-800"
+          />
+          <EditableText
+            contentKey="phase3_hashtag"
+            defaultText="#ElDerechoDeHacerRuido · Roberto Hung Cavalieri"
+            className="text-xs text-neutral-500 font-mono-code"
+          />
         </div>
-        <h2 className="text-3xl sm:text-4xl lg:text-5xl font-heading font-extrabold uppercase tracking-tight text-white leading-tight">
-          Protocolo de Tokenización: <span className="text-[#FF6105]">Especificaciones & Emisión</span>
-        </h2>
-        <p className="text-sm text-neutral-400 mt-2 max-w-3xl leading-relaxed font-body">
-          Subdivisión matemática y contractual de la Torre Residencial RH-RWA en 100.000 tokens fungibles, permitiendo que cada participante acceda a la copropiedad con plenos derechos económicos.
-        </p>
+        <EditableText
+          contentKey="phase3_title"
+          defaultText="Protocolo de Tokenización: Especificaciones & Emisión"
+          as="h2"
+          className="text-3xl sm:text-4xl lg:text-5xl font-heading font-extrabold uppercase tracking-tight text-white leading-tight"
+        />
+        <EditableText
+          contentKey="phase3_subtitle"
+          defaultText="Subdivisión matemática y contractual de la Torre Residencial RH-RWA en 100.000 tokens fungibles, permitiendo que cada participante acceda a la copropiedad con plenos derechos económicos."
+          as="p"
+          className="text-sm text-neutral-400 mt-2 max-w-3xl leading-relaxed font-body block"
+        />
       </div>
 
       {/* TOP SECTION: Project Image Side-by-Side with Tokenization Specifications */}
@@ -203,11 +214,18 @@ export const Phase3Tokenization: React.FC<Phase3Props> = ({ state }) => {
           <div className="p-4 rounded-2xl bg-neutral-950 border border-neutral-800 space-y-2 text-xs font-mono-code">
             <div className="flex items-center gap-1.5 text-neutral-300 font-bold">
               <Scale className="w-3.5 h-3.5 text-[#FF6105]" />
-              <span>Certeza Jurídica & Smart Contract:</span>
+              <EditableText
+                contentKey="phase3_legal_title"
+                defaultText="Certeza Jurídica & Smart Contract:"
+                className="font-bold text-neutral-300"
+              />
             </div>
-            <p className="text-[11px] text-neutral-400 leading-relaxed font-body">
-              Cada token representa una alícuota patrimonial en el vehículo titular (SPV/Fideicomiso) con derecho automático a dividendos por arrendamiento y voto en asamblea descentralizada.
-            </p>
+            <EditableText
+              contentKey="phase3_legal_desc"
+              defaultText="Cada token representa una alícuota patrimonial en el vehículo titular (SPV/Fideicomiso) con derecho automático a dividendos por arrendamiento y voto en asamblea descentralizada."
+              as="p"
+              className="text-[11px] text-neutral-400 leading-relaxed font-body block"
+            />
           </div>
         </div>
 
@@ -216,25 +234,37 @@ export const Phase3Tokenization: React.FC<Phase3Props> = ({ state }) => {
           <div className="flex items-center justify-between border-b border-neutral-800 pb-3">
             <div className="flex items-center gap-2">
               <Cpu className="w-4 h-4 text-[#FF6105]" />
-              <h3 className="text-xs font-heading font-bold uppercase tracking-wider text-white">
-                Especificaciones de la Tokenización RH-RWA
-              </h3>
+              <EditableText
+                contentKey="phase3_specs_title"
+                defaultText="Especificaciones de la Tokenización RH-RWA"
+                className="text-xs font-heading font-bold uppercase tracking-wider text-white"
+              />
             </div>
-            <span className="px-2.5 py-1 rounded-full bg-neutral-900 border border-neutral-800 text-[#FF6105] font-mono-code text-xs font-bold">
-              1 Token = $10 USD
-            </span>
+            <EditableText
+              contentKey="phase3_specs_price"
+              defaultText="1 Token = $10 USD"
+              className="px-2.5 py-1 rounded-full bg-neutral-900 border border-neutral-800 text-[#FF6105] font-mono-code text-xs font-bold"
+            />
           </div>
 
           {/* Math Equivalences Box with High Legibility */}
           <div className="p-5 bg-neutral-950 rounded-2xl border-2 border-[#FF6105]/80 shadow-md">
-            <div className="text-xs font-bold uppercase font-mono-code text-[#FF6105] tracking-wider">
-              Subdivisión Matemática del Inmueble
-            </div>
-            <div className="text-4xl sm:text-5xl lg:text-6xl font-black font-mono-code text-white mt-1 tracking-tight">
-              100.000 Tokens
-            </div>
+            <EditableText
+              contentKey="phase3_math_title"
+              defaultText="Subdivisión Matemática del Inmueble"
+              className="text-xs font-bold uppercase font-mono-code text-[#FF6105] tracking-wider block"
+            />
+            <EditableText
+              contentKey="phase3_math_headline"
+              defaultText="100.000 Tokens"
+              className="text-4xl sm:text-5xl lg:text-6xl font-black font-mono-code text-white mt-1 tracking-tight block"
+            />
             <div className="text-sm text-neutral-300 mt-1.5 font-body">
-              Precio unitario: <strong className="text-[#FF6105] font-mono-code text-base">$10 USD</strong> por token fungible
+              <EditableText
+                contentKey="phase3_math_subtitle"
+                defaultText="Precio unitario: $10 USD por token fungible"
+                className="text-sm text-neutral-300 font-body"
+              />
             </div>
           </div>
 

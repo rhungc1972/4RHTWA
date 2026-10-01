@@ -116,12 +116,16 @@ export const Phase2ExclusionDiagnosis: React.FC<Phase2Props> = ({ state, onGoToP
       {/* Top Breadcrumb & Title */}
       <div>
         <div className="flex items-center gap-2 mb-2">
-          <span className="px-3 py-1 rounded-full text-xs font-mono-code uppercase tracking-wider bg-red-950/60 text-red-400 border border-red-800/60">
-            Fase 2 de 5 · Diagnóstico Analítico en Directo
-          </span>
-          <span className="text-xs text-neutral-500 font-mono-code">
-            #ElDerechoDeHacerRuido · Roberto Hung Cavalieri
-          </span>
+          <EditableText
+            contentKey="phase2_badge"
+            defaultText="Fase 2 de 5 · Diagnóstico Analítico en Directo"
+            className="px-3 py-1 rounded-full text-xs font-mono-code uppercase tracking-wider bg-red-950/60 text-red-400 border border-red-800/60"
+          />
+          <EditableText
+            contentKey="phase2_hashtag"
+            defaultText="#ElDerechoDeHacerRuido · Roberto Hung Cavalieri"
+            className="text-xs text-neutral-500 font-mono-code"
+          />
         </div>
         <EditableText
           contentKey="phase2_title"
@@ -205,12 +209,16 @@ export const Phase2ExclusionDiagnosis: React.FC<Phase2Props> = ({ state, onGoToP
             <div className="absolute bottom-3 inset-x-3 bg-black/90 backdrop-blur-md p-3 rounded-xl border border-neutral-800">
               <div className="flex items-center justify-between">
                 <div>
-                  <span className="text-xs font-heading font-bold text-white uppercase block">
-                    Torre Residencial RH-RWA · 10 Pisos · 1.000 m²
-                  </span>
-                  <span className="text-[10px] text-neutral-400 font-mono-code">
-                    Valuación Obra: $1.000.000 USD · Ticket Mínimo Tradicional: $10.000 USD
-                  </span>
+                  <EditableText
+                    contentKey="phase2_project_title"
+                    defaultText="Torre Residencial RH-RWA · 10 Pisos · 1.000 m²"
+                    className="text-xs font-heading font-bold text-white uppercase block"
+                  />
+                  <EditableText
+                    contentKey="phase2_project_subtitle"
+                    defaultText="Valuación Obra: $1.000.000 USD · Ticket Mínimo Tradicional: $10.000 USD"
+                    className="text-[10px] text-neutral-400 font-mono-code block"
+                  />
                 </div>
                 <span className="text-xs font-mono-code text-[#FF6105] font-bold">
                   $1.000 USD / m²
@@ -272,11 +280,18 @@ export const Phase2ExclusionDiagnosis: React.FC<Phase2Props> = ({ state, onGoToP
           <div className="p-4 rounded-2xl bg-neutral-950 border border-neutral-800 space-y-2 text-xs font-mono-code">
             <div className="flex items-center gap-1.5 text-neutral-300 font-bold">
               <Scale className="w-3.5 h-3.5 text-[#FF6105]" />
-              <span>Fundamento Matemático del Cuello de Botella:</span>
+              <EditableText
+                contentKey="phase2_theory_title"
+                defaultText="Fundamento Teórico: El Capital Inmóvil (Hernando de Soto)"
+                className="font-bold text-neutral-300"
+              />
             </div>
-            <p className="text-[11px] text-neutral-400 leading-relaxed font-body">
-              En el modelo bancario y registral clásico, la cuota indivisa no puede fraccionarse eficientemente. Los aportes inferiores a $10.000 USD son rechazados administrativamente, imposibilitando canalizar el ahorro del 90% de la ciudadanía presente en este auditorio.
-            </p>
+            <EditableText
+              contentKey="phase2_theory_desc"
+              defaultText="Sin vehículos de titulación líquida o alícuotas digitales transferibles, la riqueza potencial de los pequeños y medianos ahorristas permanece estancada como «capital muerto». La exigencia de tickets desproporcionados en el derecho inmobiliario clásico bloquea el acceso de la ciudadanía al rendimiento productivo."
+              as="p"
+              className="text-[11px] text-neutral-400 leading-relaxed font-body block"
+            />
           </div>
         </div>
 
@@ -286,9 +301,11 @@ export const Phase2ExclusionDiagnosis: React.FC<Phase2Props> = ({ state, onGoToP
           <div className="bg-[#0A0A0A] rounded-3xl p-6 sm:p-7 border border-neutral-800 shadow-xl flex flex-col justify-between space-y-4">
             <div>
               <div className="flex items-center justify-between mb-3">
-                <span className="text-xs font-mono-code uppercase tracking-wider text-neutral-400">
-                  Capital Calificado Tradicional Captado
-                </span>
+                <EditableText
+                  contentKey="phase2_metric_qualified_label"
+                  defaultText="Capital Calificado Tradicional Captado"
+                  className="text-xs font-mono-code uppercase tracking-wider text-neutral-400"
+                />
                 <span className="px-2.5 py-1 rounded-full bg-neutral-900 border border-neutral-800 text-neutral-300 font-mono-code text-xs">
                   Filtro Estricto: &ge; $10.000 USD
                 </span>
@@ -322,9 +339,11 @@ export const Phase2ExclusionDiagnosis: React.FC<Phase2Props> = ({ state, onGoToP
             {/* Blocked / Idle Capital Indicator */}
             <div className="p-4 bg-neutral-950 rounded-2xl border border-neutral-800/80 flex items-center justify-between">
               <div>
-                <span className="text-[11px] font-mono-code uppercase tracking-wider text-neutral-400 block mb-0.5">
-                  Ahorro Bloqueado Rechazado por la Vía Tradicional:
-                </span>
+                <EditableText
+                  contentKey="phase2_metric_excluded_label"
+                  defaultText="Ahorro Bloqueado Rechazado por la Vía Tradicional:"
+                  className="text-[11px] font-mono-code uppercase tracking-wider text-neutral-400 block mb-0.5"
+                />
                 <span className="text-2xl sm:text-3xl font-mono-code font-black text-[#FF6105]">
                   ${excludedBlocked.toLocaleString()} USD
                 </span>

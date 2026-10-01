@@ -59,13 +59,11 @@ export const Phase1AuditoriumHome: React.FC<Phase1AuditoriumHomeProps> = ({
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
           {/* Left Column: Pregunta única con tipografía gigante minimalista de alto contraste */}
           <div className="lg:col-span-5 space-y-4">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-neutral-900/80 border border-neutral-800 text-[11px] font-mono-code uppercase tracking-wider text-[#FF6105]">
-              <span className="w-1.5 h-1.5 rounded-full bg-[#FF6105] animate-pulse" />
-              <EditableText
-                contentKey="phase1_badge"
-                defaultText="Conferencia Magistral · Roberto Hung"
-              />
-            </div>
+            <EditableText
+              contentKey="phase1_badge"
+              defaultText="Conferencia Magistral · Roberto Hung"
+              className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-neutral-900/80 border border-neutral-800 text-[11px] font-mono-code uppercase tracking-wider text-[#FF6105]"
+            />
 
             <EditableText
               contentKey="phase1_title"
@@ -97,9 +95,11 @@ export const Phase1AuditoriumHome: React.FC<Phase1AuditoriumHomeProps> = ({
             </div>
 
             <div className="mt-3 text-center">
-              <span className="text-[11px] font-mono-code text-neutral-400 uppercase tracking-widest block">
-                Acceso Interactivo en Sala
-              </span>
+              <EditableText
+                contentKey="phase1_qr_card_title"
+                defaultText="Acceso Interactivo en Sala"
+                className="text-[11px] font-mono-code text-neutral-400 uppercase tracking-widest block"
+              />
             </div>
           </div>
 

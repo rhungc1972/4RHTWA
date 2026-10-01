@@ -26,6 +26,7 @@ import { ContemporaryDonutChart, DonutSegment } from './ContemporaryDonutChart';
 import { generateAndDownloadDossierPDF, generateCleanParticipantDossierPDF } from '../utils/pdfGenerator';
 import { resetDatabase, getLocalRawState } from '../services/api';
 import { AdminPinModal } from './AdminPinModal';
+import { EditableText } from '../context/ContentContext';
 
 interface Phase5Props {
   state: AppStateData;
@@ -287,21 +288,31 @@ export const Phase5SurveyDashboard: React.FC<Phase5Props> = ({ state, onGoToPhas
       {/* Slide Header */}
       <div>
         <div className="flex items-center gap-2 mb-2">
-          <span className="px-3 py-1 rounded-full text-xs font-mono-code uppercase tracking-wider bg-neutral-900 text-[#FF6105] border border-neutral-800">
-            Fase 5 de 5 · Evaluación, Gráficos Circulares & Dossier Final
-          </span>
-          <span className="text-xs text-neutral-500 font-mono-code">
-            #ElDerechoDeHacerRuido · Roberto Hung Cavalieri
-          </span>
+          <EditableText
+            contentKey="phase5_badge"
+            defaultText="Fase 5 de 5 · Evaluación, Gráficos Circulares & Dossier Final"
+            className="px-3 py-1 rounded-full text-xs font-mono-code uppercase tracking-wider bg-neutral-900 text-[#FF6105] border border-neutral-800"
+          />
+          <EditableText
+            contentKey="phase5_hashtag"
+            defaultText="#ElDerechoDeHacerRuido · Roberto Hung Cavalieri"
+            className="text-xs text-neutral-500 font-mono-code"
+          />
         </div>
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
           <div>
-            <h2 className="text-3xl sm:text-4xl lg:text-5xl font-heading font-extrabold uppercase tracking-tight text-white leading-tight">
-              Dashboard Analítico: <span className="text-[#FF6105]">Fotografías, Métricas & Percepción</span>
-            </h2>
-            <p className="text-sm text-neutral-400 mt-2 max-w-3xl leading-relaxed font-body">
-              Consolidación empírica en tiempo real con los datos aportados por los asistentes: registro fotográfico del inmueble, gráficos circulares de ambos escenarios y satisfacción en sala.
-            </p>
+            <EditableText
+              contentKey="phase5_title"
+              defaultText="Dashboard Analítico: Fotografías, Métricas & Percepción"
+              as="h2"
+              className="text-3xl sm:text-4xl lg:text-5xl font-heading font-extrabold uppercase tracking-tight text-white leading-tight"
+            />
+            <EditableText
+              contentKey="phase5_subtitle"
+              defaultText="Consolidación empírica en tiempo real con los datos aportados por los asistentes: registro fotográfico del inmueble, gráficos circulares de ambos escenarios y satisfacción en sala."
+              as="p"
+              className="text-sm text-neutral-400 mt-2 max-w-3xl leading-relaxed font-body block"
+            />
           </div>
 
           <div className="flex items-center gap-3 shrink-0">
@@ -335,9 +346,12 @@ export const Phase5SurveyDashboard: React.FC<Phase5Props> = ({ state, onGoToPhas
               <Camera className="w-4 h-4" />
             </div>
             <div>
-              <h3 className="text-base sm:text-lg font-heading font-bold uppercase tracking-tight text-white">
-                1. Registro Visual del Activo Inmobiliario: 2 Fotografías Oficiales
-              </h3>
+              <EditableText
+                contentKey="phase5_sec_photos"
+                defaultText="1. Registro Visual del Activo Inmobiliario: 2 Fotografías Oficiales"
+                as="h3"
+                className="text-base sm:text-lg font-heading font-bold uppercase tracking-tight text-white block"
+              />
               <p className="text-xs text-neutral-400 font-mono-code">
                 Torre Residencial RH-RWA · Valuación Total: $1.000.000 USD · 10 Pisos · 1.000 m²
               </p>
@@ -442,9 +456,12 @@ export const Phase5SurveyDashboard: React.FC<Phase5Props> = ({ state, onGoToPhas
               <PieIcon className="w-4 h-4" />
             </div>
             <div>
-              <h3 className="text-base sm:text-lg font-heading font-bold uppercase tracking-tight text-white">
-                2. Comparativa de Modelos en Gráficos Circulares Visibles
-              </h3>
+              <EditableText
+                contentKey="phase5_sec_charts"
+                defaultText="2. Comparativa de Modelos en Gráficos Circulares Visibles"
+                as="h3"
+                className="text-base sm:text-lg font-heading font-bold uppercase tracking-tight text-white block"
+              />
               <p className="text-xs text-neutral-400 font-mono-code">
                 Contraste empírico directo entre la exclusión tradicional y la democratización del protocolo RWA
               </p>
@@ -568,9 +585,12 @@ export const Phase5SurveyDashboard: React.FC<Phase5Props> = ({ state, onGoToPhas
           <div className="flex items-center justify-between border-b border-neutral-800 pb-3">
             <div className="flex items-center gap-2">
               <Star className="w-4 h-4 text-[#FF6105]" />
-              <h3 className="text-base font-heading font-bold uppercase tracking-tight text-white">
-                3. Satisfacción de la Actividad & Evaluación
-              </h3>
+              <EditableText
+                contentKey="phase5_sec_satisfaction"
+                defaultText="3. Satisfacción de la Actividad & Evaluación"
+                as="h3"
+                className="text-base font-heading font-bold uppercase tracking-tight text-white"
+              />
             </div>
             <span className="text-xs font-mono-code text-neutral-400">
               {totalSurveyed} evaluaciones
@@ -634,9 +654,12 @@ export const Phase5SurveyDashboard: React.FC<Phase5Props> = ({ state, onGoToPhas
           <div className="flex items-center justify-between border-b border-neutral-800 pb-3">
             <div className="flex items-center gap-2">
               <Scale className="w-4 h-4 text-[#FF6105]" />
-              <h3 className="text-base font-heading font-bold uppercase tracking-tight text-white">
-                4. Materias de Interés Doctrinal Seleccionadas
-              </h3>
+              <EditableText
+                contentKey="phase5_sec_topics"
+                defaultText="4. Materias de Interés Doctrinal Seleccionadas"
+                as="h3"
+                className="text-base font-heading font-bold uppercase tracking-tight text-white"
+              />
             </div>
             <span className="text-xs font-mono-code text-neutral-400">
               Votación de los asistentes
@@ -692,9 +715,12 @@ export const Phase5SurveyDashboard: React.FC<Phase5Props> = ({ state, onGoToPhas
               <MessageSquare className="w-4 h-4" />
             </div>
             <div>
-              <h3 className="text-base sm:text-lg font-heading font-bold uppercase tracking-tight text-white">
-                5. Respuestas de los Participantes & Comentarios Efectivos
-              </h3>
+              <EditableText
+                contentKey="phase5_sec_comments"
+                defaultText="5. Respuestas de los Participantes & Comentarios Efectivos"
+                as="h3"
+                className="text-base sm:text-lg font-heading font-bold uppercase tracking-tight text-white block"
+              />
               <p className="text-xs text-neutral-400 font-mono-code">
                 Publicación estricta de lo que efectivamente marcó cada persona (sin alucinaciones ni textos agregados)
               </p>
@@ -788,12 +814,18 @@ export const Phase5SurveyDashboard: React.FC<Phase5Props> = ({ state, onGoToPhas
       {/* ========================================================================= */}
       <div className="p-6 rounded-3xl bg-neutral-950 border border-[#FF6105]/40 space-y-4 shadow-xl">
         <div className="text-center space-y-1">
-          <p className="text-base sm:text-xl font-heading font-bold text-white tracking-wide">
-            “Agradecemos profundamente su activa participación en esta sesión de inmersión en la economía tokenizada.”
-          </p>
-          <p className="text-xs text-neutral-400 font-mono-code">
-            Roberto Hung Cavalieri · #ElDerechoDeHacerRuido · www.robertohung.com
-          </p>
+          <EditableText
+            contentKey="closing_statement"
+            defaultText="“Agradecemos profundamente su activa participación en esta sesión de inmersión en la economía tokenizada.”"
+            as="p"
+            className="text-base sm:text-xl font-heading font-bold text-white tracking-wide block"
+          />
+          <EditableText
+            contentKey="closing_speaker"
+            defaultText="Roberto Hung Cavalieri · #ElDerechoDeHacerRuido · www.robertohung.com"
+            as="p"
+            className="text-xs text-neutral-400 font-mono-code block"
+          />
         </div>
 
         {/* Buttons: Download Dossier & Reset */}

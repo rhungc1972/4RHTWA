@@ -6,23 +6,93 @@ export interface ContentDictionary {
 }
 
 export const DEFAULT_CONTENT: ContentDictionary = {
+  // Phase 1: Auditorium & Home
   phase1_badge: 'Conferencia Magistral · Roberto Hung',
+  phase1_speaker: 'Roberto Hung Cavalieri',
+  phase1_link: 'www.robertohung.com',
+  phase1_hashtag: '#ElDerechoDeHacerRuido',
+  phase1_tagline: 'Experiencia Interactiva en Tiempo Real',
   phase1_title: '¿Sabes lo que es la tokenización de activos del mundo real (RWA)?',
-  phase1_subtitle: 'Escanea el código con la cámara de tu teléfono para participar en tiempo real desde tu asiento en la sala.',
-  phase1_question: '¿Cuánto capital estarías dispuesto a aportar en este proyecto inmobiliario?',
-  phase1_quote: 'La propiedad formal no es simplemente un título, es el proceso que transforma activos dispersos en capital productivo.',
+  phase1_subtitle: 'Roberto Hung desarrolló esta experiencia interactiva para generar iniciales reflexiones sobre el fenómeno de la tokenización de activos de la vida real (RWA). Conecte su teléfono móvil desde su asiento para participar en la simulación.',
+  phase1_qr_card_title: 'Acceso Interactivo en Sala',
+  phase1_qr_instruction: 'Escanea el código con la cámara de tu teléfono para participar en tiempo real desde tu asiento en la sala.',
+  phase1_qr_note: '* El código QR se mantendrá visible para quienes entren más tarde.',
+
+  // Phase 2: Traditional Exclusion Diagnosis
   phase2_badge: 'Fase 2 de 5 · Diagnóstico Analítico en Directo',
+  phase2_hashtag: '#ElDerechoDeHacerRuido · Roberto Hung Cavalieri',
   phase2_title: 'Diagnóstico del Capital Paralizado: La Brecha de Exclusión',
   phase2_subtitle: 'Visualización empírica de cómo la barrera tradicional ($10.000 USD por cuota indivisa) trunca la movilización del ahorro privado en el propio auditorio, dejando al promotor con un severo déficit de financiación.',
-  phase2_threshold_desc: 'Barrera de entrada tradicional: $10.000 USD. Quien dispone de menos queda excluido sin acceso al rendimiento.',
-  phase3_title: 'Protocolo de Tokenización & Smart Contracts',
-  phase3_subtitle: 'División molecular del activo en 100.000 tokens ERC-20 respaldados por alícuotas jurídicas reales',
-  phase4_title: 'Democratización & Co-propiedad Líquida',
-  phase4_subtitle: 'Absorción colectiva del edificio piso por piso: democratización desde $10 USD por token',
-  phase5_title: 'Evaluación, Síntesis & Dossier Final',
-  phase5_subtitle: 'Computación en tiempo real del auditorio y consolidación empírica',
-  closing_statement: 'Roberto Hung ha desarrollado esta aplicación interactiva para la divulgación del fenómeno y cultura de la tokenización de activos del mundo real (RWA)',
-  gratitude_message: 'Agradecemos profundamente su activa participación en esta sesión de inmersión en la economía tokenizada.',
+  phase2_photo_badge_1: 'Foto 1 · Perspectiva Exterior',
+  phase2_photo_badge_2: 'Foto 2 · Estructura & Gemelo BIM',
+  phase2_project_title: 'Torre Residencial RH-RWA · 10 Pisos · 1.000 m²',
+  phase2_project_subtitle: 'Valuación Obra: $1.000.000 USD · Ticket Mínimo Tradicional: $10.000 USD',
+  phase2_theory_title: 'Fundamento Teórico: El Capital Inmóvil (Hernando de Soto)',
+  phase2_theory_desc: 'Sin vehículos de titulación líquida o alícuotas digitales transferibles, la riqueza potencial de los pequeños y medianos ahorristas permanece estancada como «capital muerto». La exigencia de tickets desproporcionados en el derecho inmobiliario clásico bloquea el acceso de la ciudadanía al rendimiento productivo.',
+  phase2_metric_qualified_label: 'Capital Capturado (Tradicional)',
+  phase2_metric_qualified_sub: 'Tickets ≥ $10.000 USD',
+  phase2_metric_excluded_label: 'Capital Excluido / Bloqueado',
+  phase2_metric_excluded_sub: 'Ahorristas con < $10.000 USD',
+  phase2_metric_deficit_label: 'Déficit de Financiación del Promotor',
+  phase2_metric_deficit_sub: 'Capital faltante para la meta',
+
+  // Phase 3: RWA Tokenization Protocol
+  phase3_badge: 'Fase 3 de 5 · Arquitectura del Protocolo RWA',
+  phase3_hashtag: '#ElDerechoDeHacerRuido · Roberto Hung Cavalieri',
+  phase3_title: 'Protocolo de Tokenización: Especificaciones & Emisión',
+  phase3_subtitle: 'Subdivisión matemática y contractual de la Torre Residencial RH-RWA en 100.000 tokens fungibles, permitiendo que cada participante acceda a la copropiedad con plenos derechos económicos.',
+  phase3_legal_title: 'Certeza Jurídica & Smart Contract:',
+  phase3_legal_desc: 'Cada token representa una alícuota patrimonial en el vehículo titular (SPV/Fideicomiso) con derecho automático a dividendos por arrendamiento y voto en asamblea descentralizada.',
+  phase3_specs_title: 'Especificaciones de la Tokenización RH-RWA',
+  phase3_specs_price: '1 Token = $10 USD',
+  phase3_math_title: 'Subdivisión Matemática del Inmueble',
+  phase3_math_headline: '100.000 Tokens',
+  phase3_math_subtitle: 'Precio unitario: $10 USD por token fungible',
+  phase3_equiv_1: '1 Token ($10 USD) = 0,01 m²',
+  phase3_equiv_2: '10 Tokens ($100 USD) = 0,10 m²',
+  phase3_equiv_3: '100 Tokens ($1.000 USD) = 1,00 m² Habitable',
+  phase3_equiv_4: '10.000 Tokens ($100.000 USD) = 1 Piso Completo (100 m²)',
+
+  // Phase 4: Democratization & Doctrinal Pillars
+  phase4_badge: 'Fase 4 de 5 · Estudio Comparativo & Pilares Doctrinales',
+  phase4_hashtag: '#ElDerechoDeHacerRuido · Roberto Hung Cavalieri',
+  phase4_title: 'Comparativa: Modelo Tradicional vs Tokenizado RWA',
+  phase4_subtitle: 'Contraste empírico entre el esquema tradicional bancario-notarial y el protocolo de tokenización fraccionada con base en los datos reales del auditorio.',
+  phase4_trad_title: 'Modelo Tradicional (Cerrado)',
+  phase4_trad_ticket: 'Ticket: ≥ $10.000 USD',
+  phase4_rwa_title: 'Modelo Tokenizado RWA (Abierto)',
+  phase4_rwa_ticket: 'Ticket: Desde $10 USD',
+  phase4_p1_title: '01. Gobernanza On-Chain',
+  phase4_p1_desc: 'Voto proporcional directo para elegir administración, presupuestos y mejoras edilicias.',
+  phase4_p1_legal: 'Democracia accionaria digital sin asambleas presenciales conflictivas.',
+  phase4_p2_title: '02. Rentas Automáticas',
+  phase4_p2_desc: 'Dispersión directa a la wallet en stablecoins (USDC/USDT) según la alícuota en tokens.',
+  phase4_p2_legal: 'Ejecución contractual auto-liquidable al segundo sin retenciones bancarias.',
+  phase4_p3_title: '03. Liquidez Inmediata (24/7)',
+  phase4_p3_desc: 'Mercado secundario de tokens continuo sin necesidad de vender el inmueble completo.',
+  phase4_p3_legal: 'Circulación desintermediada de alícuotas patrimoniales registradas.',
+  phase4_p4_title: '04. Colateral & Financiación',
+  phase4_p4_desc: 'Uso de tokens inmobiliarios como garantía líquida para préstamos DeFi o bancarios.',
+  phase4_p4_legal: 'Pignoración digital de títulos de copropiedad manteniendo el cobro de rentas.',
+  phase4_p5_title: '05. Tránsito Negocial Transparente',
+  phase4_p5_desc: 'Transmisión verificable, eficaz, económica y con reducción radical de aranceles.',
+  phase4_p5_legal: 'Inmutabilidad registral en blockchain y blindaje jurídico notarial.',
+  phase4_p6_title: '06. Despertar del Capital Muerto',
+  phase4_p6_desc: 'Doctrina Hernando de Soto: transformar bienes estáticos en palancas de riqueza global.',
+  phase4_p6_legal: 'Democratización real del ahorro popular para la copropiedad productiva.',
+
+  // Phase 5: Survey Dashboard & Closing
+  phase5_badge: 'Fase 5 de 5 · Evaluación, Gráficos Circulares & Dossier Final',
+  phase5_hashtag: '#ElDerechoDeHacerRuido · Roberto Hung Cavalieri',
+  phase5_title: 'Dashboard Analítico: Fotografías, Métricas & Percepción',
+  phase5_subtitle: 'Consolidación empírica en tiempo real con los datos aportados por los asistentes: registro fotográfico del inmueble, gráficos circulares de ambos escenarios y satisfacción en sala.',
+  phase5_sec_photos: '1. Registro Fotográfico y Gemelo Digital del Inmueble',
+  phase5_sec_charts: '2. Comparativa Empírica: Gráficos Circulares de Absorción',
+  phase5_sec_satisfaction: '3. Métrica de Calidad, Claridad Doctrinal y Net Promoter Score (NPS)',
+  phase5_sec_topics: '4. Interés Temático del Auditorio para Próximas Sesiones',
+  phase5_sec_comments: '5. Feed de Participación y Citas del Auditorio',
+  closing_statement: '“Agradecemos profundamente su activa participación en esta sesión de inmersión en la economía tokenizada.”',
+  closing_speaker: 'Roberto Hung Cavalieri · #ElDerechoDeHacerRuido · www.robertohung.com',
 };
 
 const PRIMARY_STORAGE_KEY = 'rwa_custom_texts';
@@ -80,8 +150,12 @@ export const ContentProvider: React.FC<{ children: ReactNode }> = ({ children })
     setContent(DEFAULT_CONTENT);
   };
 
+  // Crucial: If key is explicitly saved (even as empty string ""), honor it!
   const getText = (key: string, fallback?: string): string => {
-    return content[key] ?? fallback ?? DEFAULT_CONTENT[key] ?? '';
+    if (content[key] !== undefined) {
+      return content[key];
+    }
+    return fallback !== undefined ? fallback : (DEFAULT_CONTENT[key] ?? '');
   };
 
   const toggleEditMode = () => {
@@ -110,7 +184,7 @@ export const ContentProvider: React.FC<{ children: ReactNode }> = ({ children })
           <div className="flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-[#FF6105] animate-ping" />
             <span className="font-bold text-[#FF6105] uppercase">Modo Edición Activo</span>
-            <span className="hidden md:inline text-neutral-400">· Haz clic en textos para editarlos</span>
+            <span className="hidden md:inline text-neutral-400">· Vaciar texto lo oculta de la presentación</span>
           </div>
 
           <div className="h-4 w-px bg-neutral-800" />
@@ -144,32 +218,54 @@ export function useContent() {
   return context;
 }
 
-// In-situ editable text component helper
+// Hook helper to conditionally check if a key has non-empty text
+export function useHasText(key: string, defaultText: string = ''): boolean {
+  const { isEditMode, getText } = useContent();
+  if (isEditMode) return true;
+  const val = getText(key, defaultText);
+  return Boolean(val && val.trim().length > 0);
+}
+
+// In-situ editable text component helper with clean conditional rendering when empty
 export const EditableText: React.FC<{
   contentKey: string;
   defaultText: string;
   className?: string;
   as?: 'h1' | 'h2' | 'h3' | 'h4' | 'p' | 'span' | 'div';
-}> = ({ contentKey, defaultText, className = '', as: Component = 'span' }) => {
+  placeholder?: string;
+}> = ({
+  contentKey,
+  defaultText,
+  className = '',
+  as: Component = 'span',
+  placeholder = 'Haz clic para redactar...',
+}) => {
   const { isEditMode, getText, updateText } = useContent();
-  const textValue = getText(contentKey, defaultText);
+  const rawText = getText(contentKey, defaultText);
+  const isBlank = !rawText || rawText.trim().length === 0;
 
+  // Clean conditional rendering in presentation mode: if empty, completely hide with no DOM remnants
   if (!isEditMode) {
-    return <Component className={className}>{textValue}</Component>;
+    if (isBlank) return null;
+    return <Component className={className}>{rawText}</Component>;
   }
 
+  // In Edit Mode: show dashed box so presenter can click and write/restore text
   return (
     <Component
       contentEditable
       suppressContentEditableWarning
       onBlur={(e) => {
         const newText = e.currentTarget.textContent || '';
-        updateText(contentKey, newText.trim());
+        const cleaned = newText === placeholder ? '' : newText.trim();
+        updateText(contentKey, cleaned);
       }}
-      className={`${className} outline-2 outline-dashed outline-[#FF6105] bg-[#FF6105]/15 rounded-md px-1.5 py-0.5 transition-all cursor-text relative group inline-block`}
-      title="Haz clic para editar este texto in-situ"
+      className={`${className} outline-2 outline-dashed outline-[#FF6105] bg-[#FF6105]/15 rounded-md px-1.5 py-0.5 transition-all cursor-text relative group inline-block ${
+        isBlank ? 'border border-dashed border-[#FF6105] bg-[#FF6105]/10 text-[#FF6105]/70 italic' : ''
+      }`}
+      title="Haz clic para editar in-situ. Si dejas el texto vacío, se ocultará automáticamente en la presentación."
     >
-      {textValue}
+      {isBlank ? placeholder : rawText}
     </Component>
   );
 };
