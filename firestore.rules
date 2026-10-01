@@ -14,7 +14,8 @@ service cloud.firestore {
         && data.commandTimestamp is number
         && data.updatedAt is number
         && (!('isActive' in data) || data.isActive is bool)
-        && (!('lastResetTimestamp' in data) || data.lastResetTimestamp is number);
+        && (!('lastResetTimestamp' in data) || data.lastResetTimestamp is number)
+        && (!('commandValue' in data) || data.commandValue == null || data.commandValue is number);
     }
 
     function isValidForm1(data) {

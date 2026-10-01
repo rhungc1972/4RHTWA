@@ -39,14 +39,21 @@ export const PresenterRemoteView: React.FC<PresenterRemoteViewProps> = ({
   onSwitchToPresenter,
   onExitRemote,
 }) => {
-  const { state, isConnected, refresh } = useRealtimeState();
-  const [activePhase, setActivePhase] = useState<number>(1);
+  const { state, isConnected, refresh, sessionPhase } = useRealtimeState();
+  const [activePhase, setActivePhase] = useState<number>(() => sessionPhase || 1);
   const [lastAction, setLastAction] = useState<string>('Mando sincronizado');
   const [isPressing, setIsPressing] = useState<string | null>(null);
   const [latencyMs, setLatencyMs] = useState<number>(18);
   const [isResetConfirmOpen, setIsResetConfirmOpen] = useState<boolean>(false);
   const [isResetting, setIsResetting] = useState<boolean>(false);
   const [resetSuccess, setResetSuccess] = useState<boolean>(false);
+
+  // Sync activePhase whenever sessionPhase updates from Firestore or projector
+  useEffect(() => {
+    if (typeof sessionPhase === 'number' && sessionPhase >= 1 && sessionPhase <= 5) {
+      setActivePhase(sessionPhase);
+    }
+  }, [sessionPhase]);
 
   // Screen WakeLock to prevent mobile presenter phone from sleeping during conference
   const wakeLockRef = useRef<any>(null);
@@ -134,14 +141,19 @@ export const PresenterRemoteView: React.FC<PresenterRemoteViewProps> = ({
     setIsPressing(cmd + (value ? `_${value}` : ''));
     setTimeout(() => setIsPressing(null), 180);
 
+    let targetPhase = activePhase;
+
     if (cmd === 'next') {
-      setActivePhase((p) => Math.min(5, p + 1));
-      setLastAction('Avanzar Diapositiva (→)');
+      targetPhase = Math.min(5, activePhase + 1);
+      setActivePhase(targetPhase);
+      setLastAction(`Avanzar a Fase ${targetPhase} (→)`);
     } else if (cmd === 'prev') {
-      setActivePhase((p) => Math.max(1, p - 1));
-      setLastAction('Retroceder Diapositiva (←)');
-    } else if (cmd === 'setPhase' && value) {
-      setActivePhase(value);
+      targetPhase = Math.max(1, activePhase - 1);
+      setActivePhase(targetPhase);
+      setLastAction(`Retroceder a Fase ${targetPhase} (←)`);
+    } else if (cmd === 'setPhase' && typeof value === 'number') {
+      targetPhase = value;
+      setActivePhase(targetPhase);
       const target = PHASES_LIST.find((p) => p.id === value);
       setLastAction(target ? target.label : `Fase ${value}`);
     } else if (cmd === 'scrollUp') {
@@ -152,7 +164,7 @@ export const PresenterRemoteView: React.FC<PresenterRemoteViewProps> = ({
       setLastAction('Retorno al Inicio');
     }
 
-    sendRemoteCommand(cmd, value);
+    sendRemoteCommand(cmd, value ?? targetPhase, targetPhase);
   };
 
   const handleExecuteReset = async () => {
@@ -160,7 +172,7 @@ export const PresenterRemoteView: React.FC<PresenterRemoteViewProps> = ({
     try {
       await resetDatabase();
       setActivePhase(1);
-      setLastAction('Conferencia Reiniciada a Cero');
+      setLastAction('Conferencia Reiniciada a Cero (Fase 1)');
       setResetSuccess(true);
       setTimeout(() => setResetSuccess(false), 2500);
     } catch (err) {

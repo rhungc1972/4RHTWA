@@ -356,6 +356,15 @@ export function useRealtimeState() {
       return true;
     }
   });
+  const [sessionPhase, setSessionPhase] = useState<number>(() => {
+    if (typeof window === 'undefined') return 1;
+    try {
+      const stored = localStorage.getItem('rwa_session_phase');
+      return stored ? Number(stored) || 1 : 1;
+    } catch {
+      return 1;
+    }
+  });
 
   const applyRawUpdate = useCallback((updater: (prev: RawAppState) => RawAppState) => {
     const current = getLocalRawState();
@@ -436,6 +445,12 @@ export function useRealtimeState() {
       (docSnap) => {
         if (docSnap.exists()) {
           const data = docSnap.data();
+          if (typeof data.phase === 'number' && data.phase >= 1 && data.phase <= 5) {
+            setSessionPhase(data.phase);
+            try {
+              localStorage.setItem('rwa_session_phase', String(data.phase));
+            } catch {}
+          }
           if (typeof data.lastResetTimestamp === 'number') {
             currentResetTs = data.lastResetTimestamp;
             syncCombinedState();
@@ -449,7 +464,7 @@ export function useRealtimeState() {
         }
       },
       (error) => {
-        handleFirestoreError(error, OperationType.GET, `sessions/${SESSION_DOC_ID}`);
+        console.warn('Firestore session state listener warning:', error);
       }
     );
 
@@ -569,7 +584,7 @@ export function useRealtimeState() {
     };
   }, [applyRawUpdate]);
 
-  return { state, isConnected, lastSyncTime, refresh, isSessionActive };
+  return { state, isConnected, lastSyncTime, refresh, isSessionActive, sessionPhase };
 }
 
 export async function setSessionActiveStatus(isActive: boolean) {
@@ -578,6 +593,10 @@ export async function setSessionActiveStatus(isActive: boolean) {
     await setDoc(
       sessionDocRef,
       {
+        phase: 1,
+        command: 'sessionActive',
+        commandValue: isActive ? 1 : 0,
+        commandTimestamp: Date.now(),
         isActive,
         updatedAt: Date.now(),
       },
@@ -590,7 +609,50 @@ export async function setSessionActiveStatus(isActive: boolean) {
       window.dispatchEvent(new CustomEvent('rwa_session_active_changed', { detail: { isActive } }));
     }
   } catch (err) {
-    handleFirestoreError(err, OperationType.UPDATE, `sessions/${SESSION_DOC_ID}`);
+    console.warn('Error updating session active status:', err);
+  }
+}
+
+export async function updateSessionPhase(phase: number) {
+  if (typeof phase !== 'number' || phase < 1 || phase > 5) return;
+  const timestamp = Date.now();
+  try {
+    localStorage.setItem('rwa_session_phase', String(phase));
+  } catch {}
+
+  const payload: RemoteCommandPayload = {
+    command: 'setPhase',
+    value: phase,
+    timestamp,
+  };
+
+  // Immediate multi-tab/same machine broadcast
+  try {
+    remoteBroadcastChannel?.postMessage(payload);
+  } catch {}
+  try {
+    localStorage.setItem('rh_rwa_remote_cmd', JSON.stringify({ ...payload, _rand: Math.random() }));
+  } catch {}
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('rwa_remote_cmd', { detail: payload }));
+  }
+
+  // Real-time Firestore document update for cross-device sync
+  try {
+    const sessionDocRef = doc(db, 'sessions', SESSION_DOC_ID);
+    await setDoc(
+      sessionDocRef,
+      {
+        phase,
+        command: 'setPhase',
+        commandValue: phase,
+        commandTimestamp: timestamp,
+        updatedAt: timestamp,
+      },
+      { merge: true }
+    );
+  } catch (err) {
+    console.warn('Error syncing session phase to Firestore:', err);
   }
 }
 
@@ -600,11 +662,16 @@ export interface RemoteCommandPayload {
   timestamp: number;
 }
 
-export async function sendRemoteCommand(command: RemoteCommandPayload['command'], value?: number) {
+export async function sendRemoteCommand(
+  command: RemoteCommandPayload['command'],
+  value?: number,
+  targetPhase?: number
+) {
+  const timestamp = Date.now();
   const payload: RemoteCommandPayload = {
     command,
     value,
-    timestamp: Date.now(),
+    timestamp,
   };
 
   // 1. BroadcastChannel (0ms latency for same-browser tabs)
@@ -625,29 +692,39 @@ export async function sendRemoteCommand(command: RemoteCommandPayload['command']
   // 4. Firestore real-time session update (<100ms cross-device to Netlify projector)
   try {
     const sessionDocRef = doc(db, 'sessions', SESSION_DOC_ID);
-    await setDoc(
-      sessionDocRef,
-      {
-        phase: command === 'setPhase' && typeof value === 'number' ? value : 1,
-        command,
-        commandValue: typeof value === 'number' ? value : null,
-        commandTimestamp: payload.timestamp,
-        updatedAt: Date.now(),
-      },
-      { merge: true }
-    );
+    const updateData: Record<string, any> = {
+      command,
+      commandValue: typeof value === 'number' ? value : null,
+      commandTimestamp: timestamp,
+      updatedAt: timestamp,
+    };
+
+    if (typeof targetPhase === 'number' && targetPhase >= 1 && targetPhase <= 5) {
+      updateData.phase = targetPhase;
+      try {
+        localStorage.setItem('rwa_session_phase', String(targetPhase));
+      } catch {}
+    } else if (command === 'setPhase' && typeof value === 'number' && value >= 1 && value <= 5) {
+      updateData.phase = value;
+      try {
+        localStorage.setItem('rwa_session_phase', String(value));
+      } catch {}
+    }
+
+    await setDoc(sessionDocRef, updateData, { merge: true });
   } catch (err) {
-    handleFirestoreError(err, OperationType.UPDATE, `sessions/${SESSION_DOC_ID}`);
+    console.warn('Error sending remote command to Firestore:', err);
   }
 }
 
 export function useRemoteCommands(
-  onCommand: (command: RemoteCommandPayload['command'], value?: number) => void
+  onCommand: (command: RemoteCommandPayload['command'], value?: number, targetPhase?: number) => void
 ) {
   useEffect(() => {
+    const mountTime = Date.now();
     const processedCommands = new Set<string>();
 
-    const handleCommand = (payload: RemoteCommandPayload) => {
+    const handleCommand = (payload: RemoteCommandPayload, targetPhase?: number) => {
       if (!payload || !payload.command) return;
       const key = `${payload.command}_${payload.value ?? ''}_${payload.timestamp}`;
       if (processedCommands.has(key)) return;
@@ -658,7 +735,7 @@ export function useRemoteCommands(
         if (first) processedCommands.delete(first);
       }
 
-      onCommand(payload.command, payload.value);
+      onCommand(payload.command, payload.value, targetPhase);
     };
 
     // 1. Local BroadcastChannel listener (0ms same machine)
@@ -699,17 +776,32 @@ export function useRemoteCommands(
       (docSnap) => {
         if (docSnap.exists()) {
           const data = docSnap.data();
-          if (data && data.command && data.commandTimestamp) {
-            handleCommand({
-              command: data.command,
-              value: data.commandValue ?? undefined,
-              timestamp: data.commandTimestamp,
-            });
+          if (data) {
+            const docPhase =
+              typeof data.phase === 'number' && data.phase >= 1 && data.phase <= 5
+                ? data.phase
+                : undefined;
+
+            if (data.command && typeof data.commandTimestamp === 'number') {
+              // Ignore stale commands older than 15s before mount
+              if (data.commandTimestamp >= mountTime - 15000) {
+                handleCommand(
+                  {
+                    command: data.command,
+                    value: data.commandValue ?? undefined,
+                    timestamp: data.commandTimestamp,
+                  },
+                  docPhase
+                );
+              }
+            } else if (docPhase) {
+              onCommand('setPhase', docPhase, docPhase);
+            }
           }
         }
       },
       (error) => {
-        handleFirestoreError(error, OperationType.GET, `sessions/${SESSION_DOC_ID}`);
+        console.warn('Firestore onSnapshot remote command listener error:', error);
       }
     );
 

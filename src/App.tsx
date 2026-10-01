@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useRealtimeState, useRemoteCommands } from './services/api';
+import { useRealtimeState, useRemoteCommands, updateSessionPhase } from './services/api';
 import { Header } from './components/Header';
 import { Phase1AuditoriumHome } from './components/Phase1AuditoriumHome';
 import { Phase2ExclusionDiagnosis } from './components/Phase2ExclusionDiagnosis';
@@ -21,15 +21,22 @@ import { getDayPin, getMonthPin, getYearPin, PRESENTER_MASTER_PIN } from './util
 import { isPresenterAuthenticated, checkSessionValidity, logoutPresenter } from './utils/presenterAuth';
 
 export default function App() {
-  const { state, isConnected, isSessionActive } = useRealtimeState();
+  const { state, isConnected, isSessionActive, sessionPhase } = useRealtimeState();
   const [currentView, setCurrentView] = useState<AppViewMode>('presenter');
-  const [currentPhase, setCurrentPhase] = useState<number>(1);
+  const [currentPhase, setCurrentPhase] = useState<number>(() => sessionPhase || 1);
   const [isGatewayModalOpen, setIsGatewayModalOpen] = useState<boolean>(false);
   const [isEmbedModalOpen, setIsEmbedModalOpen] = useState<boolean>(false);
   const [isUiBarsVisible, setIsUiBarsVisible] = useState<boolean>(false);
   const [isPresenterAuthed, setIsPresenterAuthed] = useState<boolean>(() => {
     return isPresenterAuthenticated();
   });
+
+  // Keep currentPhase in sync with cloud sessionPhase from remote or other controllers
+  useEffect(() => {
+    if (typeof sessionPhase === 'number' && sessionPhase >= 1 && sessionPhase <= 5) {
+      setCurrentPhase(sessionPhase);
+    }
+  }, [sessionPhase]);
 
   // Track conference reset event to immediately return projector to Phase 1
   useEffect(() => {
@@ -93,20 +100,41 @@ export default function App() {
     }
   }, []);
 
+  // Master phase changer that updates local UI and broadcasts to cloud/cross-device
+  const handleSelectPhase = useCallback((phase: number) => {
+    setCurrentPhase(phase);
+    updateSessionPhase(phase);
+  }, []);
+
   // Real-time synchronization: Listen to commands from Master Remote (<150ms latency)
-  const handleRemoteCommand = useCallback((cmd: string, val?: number) => {
+  const handleRemoteCommand = useCallback((cmd: string, val?: number, targetPhase?: number) => {
     if (cmd === 'next') {
-      setCurrentPhase((prev) => Math.min(5, prev + 1));
+      if (typeof val === 'number' && val >= 1 && val <= 5) {
+        setCurrentPhase(val);
+      } else {
+        setCurrentPhase((prev) => Math.min(5, prev + 1));
+      }
     } else if (cmd === 'prev') {
-      setCurrentPhase((prev) => Math.max(1, prev - 1));
-    } else if (cmd === 'setPhase' && typeof val === 'number') {
+      if (typeof val === 'number' && val >= 1 && val <= 5) {
+        setCurrentPhase(val);
+      } else {
+        setCurrentPhase((prev) => Math.max(1, prev - 1));
+      }
+    } else if (cmd === 'setPhase' && typeof val === 'number' && val >= 1 && val <= 5) {
       setCurrentPhase(val);
-    } else if (cmd === 'scrollDown') {
-      window.scrollBy({ top: 380, behavior: 'smooth' });
+    } else if (typeof targetPhase === 'number' && targetPhase >= 1 && targetPhase <= 5) {
+      setCurrentPhase(targetPhase);
+    }
+
+    if (cmd === 'scrollDown') {
+      window.scrollBy({ top: 400, behavior: 'smooth' });
+      document.documentElement.scrollBy({ top: 400, behavior: 'smooth' });
     } else if (cmd === 'scrollUp') {
-      window.scrollBy({ top: -380, behavior: 'smooth' });
+      window.scrollBy({ top: -400, behavior: 'smooth' });
+      document.documentElement.scrollBy({ top: -400, behavior: 'smooth' });
     } else if (cmd === 'scrollTop') {
       window.scrollTo({ top: 0, behavior: 'smooth' });
+      document.documentElement.scrollTo({ top: 0, behavior: 'smooth' });
     }
   }, []);
 
@@ -119,25 +147,25 @@ export default function App() {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') {
         if (currentPhase < 5) {
-          setCurrentPhase((prev) => prev + 1);
+          handleSelectPhase(currentPhase + 1);
         }
       } else if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
         if (currentPhase > 1) {
-          setCurrentPhase((prev) => prev - 1);
+          handleSelectPhase(currentPhase - 1);
         }
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [currentView, currentPhase]);
+  }, [currentView, currentPhase, handleSelectPhase]);
 
   const handleNextPhase = () => {
-    if (currentPhase < 5) setCurrentPhase((p) => p + 1);
+    if (currentPhase < 5) handleSelectPhase(currentPhase + 1);
   };
 
   const handlePrevPhase = () => {
-    if (currentPhase > 1) setCurrentPhase((p) => p - 1);
+    if (currentPhase > 1) handleSelectPhase(currentPhase - 1);
   };
 
   // 1. MASTER REMOTE VIEW (Presenter Thumb Controller)
@@ -265,7 +293,7 @@ export default function App() {
             }
           }}
           currentPhase={currentPhase}
-          onSelectPhase={setCurrentPhase}
+          onSelectPhase={handleSelectPhase}
           isConnected={isConnected}
           onOpenEmbedModal={() => setIsEmbedModalOpen(true)}
           state={state}
@@ -281,26 +309,26 @@ export default function App() {
         {currentPhase === 1 && (
           <Phase1AuditoriumHome
             state={state}
-            onGoToPhase2={() => setCurrentPhase(2)}
+            onGoToPhase2={() => handleSelectPhase(2)}
           />
         )}
         {currentPhase === 2 && (
           <Phase2ExclusionDiagnosis
             state={state}
-            onGoToPhase3={() => setCurrentPhase(3)}
+            onGoToPhase3={() => handleSelectPhase(3)}
           />
         )}
         {currentPhase === 3 && <Phase3Tokenization state={state} />}
         {currentPhase === 4 && (
           <Phase4Democratization
             state={state}
-            onGoToPhase5={() => setCurrentPhase(5)}
+            onGoToPhase5={() => handleSelectPhase(5)}
           />
         )}
         {currentPhase === 5 && (
           <Phase5SurveyDashboard
             state={state}
-            onGoToPhase1={() => setCurrentPhase(1)}
+            onGoToPhase1={() => handleSelectPhase(1)}
           />
         )}
       </main>
@@ -324,7 +352,7 @@ export default function App() {
               {[1, 2, 3, 4, 5].map((step) => (
                 <button
                   key={step}
-                  onClick={() => setCurrentPhase(step)}
+                  onClick={() => handleSelectPhase(step)}
                   className={`transition-all cursor-pointer ${
                     currentPhase === step
                       ? 'w-8 h-2.5 bg-[#FF6105] rounded-full shadow-[0_0_10px_rgba(255,97,5,0.6)]'
