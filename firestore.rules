@@ -1,0 +1,91 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isValidSession(data) {
+      return data.keys().hasAll(['phase', 'command', 'commandTimestamp', 'updatedAt'])
+        && data.phase is number && data.phase >= 1 && data.phase <= 5
+        && data.command is string && data.command.size() <= 50
+        && data.commandTimestamp is number
+        && data.updatedAt is number;
+    }
+
+    function isValidForm1(data) {
+      return data.keys().hasAll(['id', 'name', 'amount', 'meetsMinimum', 'timestamp'])
+        && data.id is string && data.id.size() <= 100
+        && data.name is string && data.name.size() <= 100
+        && (!('email' in data) || (data.email is string && data.email.size() <= 150))
+        && data.amount is number && data.amount >= 0 && data.amount <= 100000000
+        && data.meetsMinimum is bool
+        && data.timestamp is number;
+    }
+
+    function isValidForm2(data) {
+      return data.keys().hasAll(['id', 'name', 'tokens', 'amount', 'm2', 'timestamp'])
+        && data.id is string && data.id.size() <= 100
+        && data.name is string && data.name.size() <= 100
+        && (!('email' in data) || (data.email is string && data.email.size() <= 150))
+        && data.tokens is number && data.tokens >= 1 && data.tokens <= 100000
+        && data.amount is number && data.amount >= 0 && data.amount <= 10000000
+        && data.m2 is number && data.m2 >= 0
+        && data.timestamp is number;
+    }
+
+    function isValidSurvey(data) {
+      return data.keys().hasAll(['id', 'name', 'email', 'ratingQuality', 'ratingClarity', 'npsScore', 'timestamp'])
+        && data.id is string && data.id.size() <= 100
+        && data.name is string && data.name.size() <= 100
+        && data.email is string && data.email.size() <= 150
+        && (!('phone' in data) || (data.phone is string && data.phone.size() <= 50))
+        && (!('secondaryEmail' in data) || (data.secondaryEmail is string && data.secondaryEmail.size() <= 150))
+        && (!('company' in data) || (data.company is string && data.company.size() <= 100))
+        && (!('industry' in data) || (data.industry is string && data.industry.size() <= 100))
+        && (!('location' in data) || (data.location is string && data.location.size() <= 100))
+        && (!('freeNotes' in data) || (data.freeNotes is string && data.freeNotes.size() <= 500))
+        && (!('comments' in data) || (data.comments is string && data.comments.size() <= 1000))
+        && (!('selectedTopics' in data) || (data.selectedTopics is list && data.selectedTopics.size() <= 15))
+        && data.ratingQuality is number && data.ratingQuality >= 1 && data.ratingQuality <= 5
+        && data.ratingClarity is number && data.ratingClarity >= 1 && data.ratingClarity <= 5
+        && data.npsScore is number && data.npsScore >= 0 && data.npsScore <= 10
+        && data.timestamp is number;
+    }
+
+    // Sessions and remote control state
+    match /sessions/{sessionId} {
+      allow read: if isValidId(sessionId);
+      allow create, update: if isValidId(sessionId) && isValidSession(request.resource.data);
+      allow delete: if false;
+
+      // Phase 1: Form 1 Submissions
+      match /form1_submissions/{submissionId} {
+        allow read: if isValidId(sessionId);
+        allow create: if isValidId(sessionId) && isValidId(submissionId) && isValidForm1(request.resource.data);
+        allow update, delete: if false;
+      }
+
+      // Phase 3: Form 2 Submissions
+      match /form2_submissions/{submissionId} {
+        allow read: if isValidId(sessionId);
+        allow create: if isValidId(sessionId) && isValidId(submissionId) && isValidForm2(request.resource.data);
+        allow update, delete: if false;
+      }
+
+      // Phase 5: Survey Submissions
+      match /survey_submissions/{submissionId} {
+        allow read: if isValidId(sessionId);
+        allow create: if isValidId(sessionId) && isValidId(submissionId) && isValidSurvey(request.resource.data);
+        allow update, delete: if false;
+      }
+    }
+
+    // Default deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

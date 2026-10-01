@@ -1,5 +1,19 @@
 import { useEffect, useState, useCallback } from 'react';
 import { AppStateData } from '../types';
+import {
+  db,
+  OperationType,
+  handleFirestoreError,
+  testConnection,
+} from './firebase';
+import {
+  doc,
+  collection,
+  onSnapshot,
+  setDoc,
+  getDocs,
+  writeBatch,
+} from 'firebase/firestore';
 
 export const INITIAL_STATE: AppStateData = {
   raw: {
@@ -9,6 +23,9 @@ export const INITIAL_STATE: AppStateData = {
     recentForm1: [],
     recentForm2: [],
     recentSurvey: [],
+    allForm1: [],
+    allForm2: [],
+    allSurveys: [],
   },
   phase1_2: {
     targetCapital: 1000000,
@@ -106,8 +123,7 @@ export interface RawAppState {
 }
 
 const LOCAL_STORAGE_KEY = 'rh_rwa_persisted_state_v1';
-const RELAY_TOPIC = 'rh_rwa_live_conference_session';
-const RELAY_URL = `https://ntfy.sh/${RELAY_TOPIC}`;
+const SESSION_DOC_ID = 'rwa_live';
 
 const TOPIC_CATALOG = [
   'Contratos Inteligentes & Derecho Notarial / Registral',
@@ -117,10 +133,16 @@ const TOPIC_CATALOG = [
   'Gobernanza Descentralizada (DAO) y Derecho Corporativo',
 ];
 
-// BroadcastChannel for instant same-browser / multi-tab synchronization
+// BroadcastChannel for instant same-browser / multi-tab acceleration
 const broadcastChannel: BroadcastChannel | null =
   typeof window !== 'undefined' && 'BroadcastChannel' in window
     ? new BroadcastChannel('rh_rwa_live_channel')
+    : null;
+
+// Dedicated remote channel for instantaneous low-latency thumb navigation on same machine
+const remoteBroadcastChannel: BroadcastChannel | null =
+  typeof window !== 'undefined' && 'BroadcastChannel' in window
+    ? new BroadcastChannel('rh_rwa_remote_controller_channel')
     : null;
 
 // Local persistent store accessor
@@ -161,29 +183,29 @@ export function computeAppState(state: RawAppState): AppStateData {
 
   // Form 1 computations
   const f1Count = state.form1.length;
-  const f1Total = state.form1.reduce((sum, item) => sum + item.amount, 0);
-  const qualifiedCount = state.form1.filter((i) => i.amount >= MIN_TICKET).length;
-  const excludedCount = state.form1.filter((i) => i.amount < MIN_TICKET).length;
+  const f1Total = state.form1.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+  const qualifiedCount = state.form1.filter((i) => (Number(i.amount) || 0) >= MIN_TICKET).length;
+  const excludedCount = state.form1.filter((i) => (Number(i.amount) || 0) < MIN_TICKET).length;
   const exclusionRate = f1Count > 0 ? (excludedCount / f1Count) * 100 : 0;
   const traditionalCapitalCaptured = state.form1
-    .filter((i) => i.amount >= MIN_TICKET)
-    .reduce((sum, item) => sum + item.amount, 0);
+    .filter((i) => (Number(i.amount) || 0) >= MIN_TICKET)
+    .reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
   const excludedCapitalBlocked = state.form1
-    .filter((i) => i.amount < MIN_TICKET)
-    .reduce((sum, item) => sum + item.amount, 0);
+    .filter((i) => (Number(i.amount) || 0) < MIN_TICKET)
+    .reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
   const totalOfferedCapital = f1Total;
   const traditionalDeficit = Math.max(0, TARGET_CAPITAL - traditionalCapitalCaptured);
   const collectedPercent = +((traditionalCapitalCaptured / TARGET_CAPITAL) * 100).toFixed(2);
 
   const distribution = {
-    tier10k: state.form1.filter((i) => i.amount >= 10000).length,
-    tier1k: state.form1.filter((i) => i.amount >= 1000 && i.amount < 10000).length,
-    tier100: state.form1.filter((i) => i.amount >= 100 && i.amount < 1000).length,
-    tier1: state.form1.filter((i) => i.amount < 100).length,
+    tier10k: state.form1.filter((i) => (Number(i.amount) || 0) >= 10000).length,
+    tier1k: state.form1.filter((i) => (Number(i.amount) || 0) >= 1000 && (Number(i.amount) || 0) < 10000).length,
+    tier100: state.form1.filter((i) => (Number(i.amount) || 0) >= 100 && (Number(i.amount) || 0) < 1000).length,
+    tier1: state.form1.filter((i) => (Number(i.amount) || 0) < 100).length,
   };
 
   // Form 2 computations
-  const f2Tokens = state.form2.reduce((sum, item) => sum + item.tokens, 0);
+  const f2Tokens = state.form2.reduce((sum, item) => sum + (Number(item.tokens) || 0), 0);
   const f2Usd = f2Tokens * 10;
   const f2M2 = +(f2Tokens / 100).toFixed(2);
   const uniqueCoOwners = new Set(
@@ -310,31 +332,15 @@ export function computeAppState(state: RawAppState): AppStateData {
   };
 }
 
-// Publish an event through both BroadcastChannel and the free cloud relay
 export function publishEvent(eventPayload: { type: string; data: unknown }) {
-  // 1. BroadcastChannel for same-origin tabs
   try {
     broadcastChannel?.postMessage(eventPayload);
   } catch (err) {
     console.warn('BroadcastChannel error:', err);
   }
-
-  // 2. ntfy.sh free public relay for cross-device synchronization (Netlify phone -> Netlify laptop)
-  try {
-    fetch(RELAY_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(eventPayload),
-      mode: 'cors',
-    }).catch(() => {
-      // Non-blocking fire & forget
-    });
-  } catch {
-    // ignore
-  }
 }
 
-// Universal Hook that synchronizes state from Express backend OR Netlify static/cloud relay
+// Universal Hook that synchronizes state from Firebase Firestore with instant offline cache
 export function useRealtimeState() {
   const [state, setState] = useState<AppStateData>(() => {
     return computeAppState(getLocalRawState());
@@ -352,75 +358,157 @@ export function useRealtimeState() {
     return computed;
   }, []);
 
-  const fetchBackendState = useCallback(async () => {
+  const refresh = useCallback(async () => {
     try {
-      const res = await fetch('/api/state');
-      const contentType = res.headers.get('content-type') || '';
-      if (res.ok && contentType.includes('application/json')) {
-        const data = await res.json();
-        setState(data);
-        setLastSyncTime(new Date());
-        setIsConnected(true);
-        return true;
-      }
-    } catch {
-      // Backend not running (e.g. Netlify static hosting)
+      const f1Snap = await getDocs(collection(db, 'sessions', SESSION_DOC_ID, 'form1_submissions'));
+      const f2Snap = await getDocs(collection(db, 'sessions', SESSION_DOC_ID, 'form2_submissions'));
+      const survSnap = await getDocs(collection(db, 'sessions', SESSION_DOC_ID, 'survey_submissions'));
+
+      const form1: Form1Entry[] = [];
+      const form2: Form2Entry[] = [];
+      const surveys: SurveyEntry[] = [];
+
+      f1Snap.forEach((d) => form1.push(d.data() as Form1Entry));
+      f2Snap.forEach((d) => form2.push(d.data() as Form2Entry));
+      survSnap.forEach((d) => surveys.push(d.data() as SurveyEntry));
+
+      const updatedRaw: RawAppState = {
+        form1,
+        form2,
+        surveys,
+        lastUpdated: Date.now(),
+      };
+      saveLocalRawState(updatedRaw);
+      setState(computeAppState(updatedRaw));
+      setLastSyncTime(new Date());
+      setIsConnected(true);
+    } catch (err) {
+      handleFirestoreError(err, OperationType.LIST, `sessions/${SESSION_DOC_ID}`);
     }
-    // Fallback: sync from local storage
-    setState(computeAppState(getLocalRawState()));
-    setIsConnected(true);
-    return false;
   }, []);
 
   useEffect(() => {
-    fetchBackendState();
+    testConnection();
 
-    // 1. Listen on BroadcastChannel for instant local tab changes
+    // In-memory collections accumulator
+    let currentF1: Form1Entry[] = [];
+    let currentF2: Form2Entry[] = [];
+    let currentSurv: SurveyEntry[] = [];
+    let currentResetTs = 0;
+
+    const syncCombinedState = () => {
+      const filteredF1 = currentF1.filter((e) => (e.timestamp || 0) >= currentResetTs);
+      const filteredF2 = currentF2.filter((e) => (e.timestamp || 0) >= currentResetTs);
+      const filteredSurv = currentSurv.filter((e) => (e.timestamp || 0) >= currentResetTs);
+
+      const nextRaw: RawAppState = {
+        form1: filteredF1,
+        form2: filteredF2,
+        surveys: filteredSurv,
+        lastUpdated: Date.now(),
+      };
+      saveLocalRawState(nextRaw);
+      setState(computeAppState(nextRaw));
+      setLastSyncTime(new Date());
+      setIsConnected(true);
+    };
+
+    // 1. Listen to Session metadata (reset timestamp)
+    const sessionDocRef = doc(db, 'sessions', SESSION_DOC_ID);
+    const unsubSession = onSnapshot(
+      sessionDocRef,
+      (docSnap) => {
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          if (typeof data.lastResetTimestamp === 'number') {
+            currentResetTs = data.lastResetTimestamp;
+            syncCombinedState();
+          }
+        }
+      },
+      (error) => {
+        handleFirestoreError(error, OperationType.GET, `sessions/${SESSION_DOC_ID}`);
+      }
+    );
+
+    // 2. Listen to Form 1 Submissions in Firestore
+    const f1ColRef = collection(db, 'sessions', SESSION_DOC_ID, 'form1_submissions');
+    const unsubF1 = onSnapshot(
+      f1ColRef,
+      (snapshot) => {
+        const items: Form1Entry[] = [];
+        snapshot.forEach((d) => {
+          items.push(d.data() as Form1Entry);
+        });
+        currentF1 = items;
+        syncCombinedState();
+      },
+      (error) => {
+        handleFirestoreError(error, OperationType.LIST, `sessions/${SESSION_DOC_ID}/form1_submissions`);
+      }
+    );
+
+    // 3. Listen to Form 2 Submissions in Firestore
+    const f2ColRef = collection(db, 'sessions', SESSION_DOC_ID, 'form2_submissions');
+    const unsubF2 = onSnapshot(
+      f2ColRef,
+      (snapshot) => {
+        const items: Form2Entry[] = [];
+        snapshot.forEach((d) => {
+          items.push(d.data() as Form2Entry);
+        });
+        currentF2 = items;
+        syncCombinedState();
+      },
+      (error) => {
+        handleFirestoreError(error, OperationType.LIST, `sessions/${SESSION_DOC_ID}/form2_submissions`);
+      }
+    );
+
+    // 4. Listen to Survey Submissions in Firestore
+    const survColRef = collection(db, 'sessions', SESSION_DOC_ID, 'survey_submissions');
+    const unsubSurv = onSnapshot(
+      survColRef,
+      (snapshot) => {
+        const items: SurveyEntry[] = [];
+        snapshot.forEach((d) => {
+          items.push(d.data() as SurveyEntry);
+        });
+        currentSurv = items;
+        syncCombinedState();
+      },
+      (error) => {
+        handleFirestoreError(error, OperationType.LIST, `sessions/${SESSION_DOC_ID}/survey_submissions`);
+      }
+    );
+
+    // BroadcastChannel listener for local instantaneous multi-tab updates
     const handleBroadcastMessage = (event: MessageEvent) => {
       const payload = event.data;
       if (!payload || !payload.type) return;
 
       if (payload.type === 'FORM1') {
         const entry = payload.data as Form1Entry;
-        const resetTs = Number(localStorage.getItem('rwa_session_reset_ts') || '0');
-        if (entry.timestamp && entry.timestamp < resetTs) return;
         applyRawUpdate((prev) => {
           if (prev.form1.some((e) => e.id === entry.id)) return prev;
           return { ...prev, form1: [...prev.form1, entry], lastUpdated: Date.now() };
         });
       } else if (payload.type === 'FORM2') {
         const entry = payload.data as Form2Entry;
-        const resetTs = Number(localStorage.getItem('rwa_session_reset_ts') || '0');
-        if (entry.timestamp && entry.timestamp < resetTs) return;
         applyRawUpdate((prev) => {
           if (prev.form2.some((e) => e.id === entry.id)) return prev;
           return { ...prev, form2: [...prev.form2, entry], lastUpdated: Date.now() };
         });
       } else if (payload.type === 'SURVEY') {
         const entry = payload.data as SurveyEntry;
-        const resetTs = Number(localStorage.getItem('rwa_session_reset_ts') || '0');
-        if (entry.timestamp && entry.timestamp < resetTs) return;
         applyRawUpdate((prev) => {
           if (prev.surveys.some((e) => e.id === entry.id)) return prev;
           return { ...prev, surveys: [...prev.surveys, entry], lastUpdated: Date.now() };
         });
       } else if (payload.type === 'RESET') {
-        const resetNow = Date.now();
-        try {
-          localStorage.setItem('rwa_session_reset_ts', String(resetNow));
-        } catch {}
-        const cleanState: RawAppState = { form1: [], form2: [], surveys: [], lastUpdated: resetNow };
+        const cleanState: RawAppState = { form1: [], form2: [], surveys: [], lastUpdated: Date.now() };
         saveLocalRawState(cleanState);
         setState(INITIAL_STATE);
-        setLastSyncTime(new Date());
-      } else if (payload.type === 'SEED_DEMO') {
-        if (payload.data) {
-          applyRawUpdate(() => payload.data as RawAppState);
-        }
-      } else if (payload.type === 'REMOTE_COMMAND' && payload.data) {
-        if (typeof window !== 'undefined') {
-          window.dispatchEvent(new CustomEvent('rwa_remote_cmd', { detail: payload.data }));
-        }
       }
     };
 
@@ -428,7 +516,6 @@ export function useRealtimeState() {
       broadcastChannel.addEventListener('message', handleBroadcastMessage);
     }
 
-    // Custom local reset listener for same-tab instant zeroing
     const handleLocalReset = () => {
       const cleanState: RawAppState = { form1: [], form2: [], surveys: [], lastUpdated: Date.now() };
       saveLocalRawState(cleanState);
@@ -437,113 +524,20 @@ export function useRealtimeState() {
     };
     window.addEventListener('rwa_state_reset', handleLocalReset);
 
-    // Immediate re-sync when screen wakes up or app tab regains focus
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        fetchBackendState();
-      }
-    };
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    window.addEventListener('focus', fetchBackendState);
-    window.addEventListener('online', fetchBackendState);
-
-    // 2. Listen to Backend Server-Sent Events with auto-reconnect engine
-    let backendSSE: EventSource | null = null;
-    let reconnectTimeout: any = null;
-
-    const setupSSE = () => {
-      try {
-        if (backendSSE) {
-          backendSSE.close();
-        }
-        backendSSE = new EventSource('/api/events');
-
-        backendSSE.onopen = () => {
-          setIsConnected(true);
-        };
-
-        backendSSE.onmessage = (event) => {
-          try {
-            if (event.data === ': heartbeat' || event.data === 'heartbeat') {
-              setIsConnected(true);
-              setLastSyncTime(new Date());
-              return;
-            }
-            const data = JSON.parse(event.data);
-            if (data.type === 'remote_command') return; // Handled by command listener
-            setState(data);
-            setLastSyncTime(new Date());
-            setIsConnected(true);
-          } catch {
-            // ignore non-json
-          }
-        };
-
-        backendSSE.onerror = () => {
-          // Fall back to immediate polling and schedule reconnect
-          fetchBackendState();
-          if (reconnectTimeout) clearTimeout(reconnectTimeout);
-          reconnectTimeout = setTimeout(setupSSE, 3000);
-        };
-      } catch {
-        // SSE not supported
-      }
-    };
-
-    setupSSE();
-
-    // 3. Listen to Free Cloud Relay SSE (for Netlify cross-device sync)
-    // using ?since=now so historical messages from previous sessions are never replayed
-    let relaySSE: EventSource | null = null;
-    try {
-      relaySSE = new EventSource(`${RELAY_URL}/sse?since=now`);
-      relaySSE.onmessage = (event) => {
-        try {
-          const sseData = JSON.parse(event.data);
-          if (sseData.event === 'message' && sseData.message) {
-            const payload = JSON.parse(sseData.message);
-            if (payload && payload.type) {
-              handleBroadcastMessage({ data: payload } as MessageEvent);
-            }
-          }
-        } catch {
-          // ignore parsing error
-        }
-      };
-    } catch {
-      // relay fallback
-    }
-
-    // High-frequency polling (2.5s) to guarantee zero disconnection under any mobile OS condition
-    const interval = setInterval(fetchBackendState, 2500);
-
     return () => {
-      clearInterval(interval);
-      if (reconnectTimeout) clearTimeout(reconnectTimeout);
+      unsubSession();
+      unsubF1();
+      unsubF2();
+      unsubSurv();
       if (broadcastChannel) {
         broadcastChannel.removeEventListener('message', handleBroadcastMessage);
       }
       window.removeEventListener('rwa_state_reset', handleLocalReset);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-      window.removeEventListener('focus', fetchBackendState);
-      window.removeEventListener('online', fetchBackendState);
-      if (backendSSE) {
-        backendSSE.close();
-      }
-      if (relaySSE) {
-        relaySSE.close();
-      }
     };
-  }, [applyRawUpdate, fetchBackendState]);
+  }, [applyRawUpdate]);
 
-  return { state, isConnected, lastSyncTime, refresh: fetchBackendState };
+  return { state, isConnected, lastSyncTime, refresh };
 }
-
-// Dedicated remote channel for instantaneous low-latency thumb navigation
-const remoteBroadcastChannel: BroadcastChannel | null =
-  typeof window !== 'undefined' && 'BroadcastChannel' in window
-    ? new BroadcastChannel('rh_rwa_remote_controller_channel')
-    : null;
 
 export interface RemoteCommandPayload {
   command: 'prev' | 'next' | 'scrollUp' | 'scrollDown' | 'setPhase' | 'scrollTop';
@@ -551,7 +545,7 @@ export interface RemoteCommandPayload {
   timestamp: number;
 }
 
-export function sendRemoteCommand(command: RemoteCommandPayload['command'], value?: number) {
+export async function sendRemoteCommand(command: RemoteCommandPayload['command'], value?: number) {
   const payload: RemoteCommandPayload = {
     command,
     value,
@@ -563,26 +557,32 @@ export function sendRemoteCommand(command: RemoteCommandPayload['command'], valu
     remoteBroadcastChannel?.postMessage(payload);
   } catch {}
 
-  // 2. LocalStorage trigger (instant fallback)
+  // 2. LocalStorage trigger
   try {
     localStorage.setItem('rh_rwa_remote_cmd', JSON.stringify({ ...payload, _rand: Math.random() }));
   } catch {}
 
-  // 3. Backend REST endpoint -> SSE
-  try {
-    fetch('/api/remote/command', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    }).catch(() => {});
-  } catch {}
-
-  // 4. Free cloud relay for cross-network (Netlify)
-  publishEvent({ type: 'REMOTE_COMMAND', data: payload });
-
-  // 5. In-window dispatch for immediate local reaction
+  // 3. In-window dispatch for immediate local reaction
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent('rwa_remote_cmd', { detail: payload }));
+  }
+
+  // 4. Firestore real-time session update (<100ms cross-device to Netlify projector)
+  try {
+    const sessionDocRef = doc(db, 'sessions', SESSION_DOC_ID);
+    await setDoc(
+      sessionDocRef,
+      {
+        phase: command === 'setPhase' && typeof value === 'number' ? value : 1,
+        command,
+        commandValue: typeof value === 'number' ? value : null,
+        commandTimestamp: payload.timestamp,
+        updatedAt: Date.now(),
+      },
+      { merge: true }
+    );
+  } catch (err) {
+    handleFirestoreError(err, OperationType.UPDATE, `sessions/${SESSION_DOC_ID}`);
   }
 }
 
@@ -590,7 +590,6 @@ export function useRemoteCommands(
   onCommand: (command: RemoteCommandPayload['command'], value?: number) => void
 ) {
   useEffect(() => {
-    // Deduplication set for commands received across multi-transport pathways
     const processedCommands = new Set<string>();
 
     const handleCommand = (payload: RemoteCommandPayload) => {
@@ -599,7 +598,6 @@ export function useRemoteCommands(
       if (processedCommands.has(key)) return;
       processedCommands.add(key);
 
-      // Keep cache size bounded
       if (processedCommands.size > 80) {
         const first = processedCommands.values().next().value;
         if (first) processedCommands.delete(first);
@@ -608,7 +606,7 @@ export function useRemoteCommands(
       onCommand(payload.command, payload.value);
     };
 
-    // 1. BroadcastChannel listener (same browser multi-tab)
+    // 1. Local BroadcastChannel listener (0ms same machine)
     const handleBcMessage = (event: MessageEvent) => {
       if (event.data && event.data.command) {
         handleCommand(event.data);
@@ -625,7 +623,7 @@ export function useRemoteCommands(
       }
     };
 
-    // 3. Custom window event listener (dispatched by useRealtimeState cloud SSE)
+    // 3. Custom window event listener
     const handleWindowEvent = (e: Event) => {
       const custom = e as CustomEvent<RemoteCommandPayload>;
       if (custom.detail) {
@@ -639,56 +637,26 @@ export function useRemoteCommands(
     window.addEventListener('storage', handleStorage);
     window.addEventListener('rwa_remote_cmd', handleWindowEvent);
 
-    // 4. Express Backend SSE listener
-    let sse: EventSource | null = null;
-    try {
-      sse = new EventSource('/api/events');
-      sse.onmessage = (e) => {
-        try {
-          const parsed = JSON.parse(e.data);
-          if (parsed && parsed.type === 'remote_command') {
-            handleCommand(parsed);
+    // 4. Firestore real-time listener for remote controller commands across mobile 4G -> proyector Netlify
+    const sessionDocRef = doc(db, 'sessions', SESSION_DOC_ID);
+    const unsubDoc = onSnapshot(
+      sessionDocRef,
+      (docSnap) => {
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          if (data && data.command && data.commandTimestamp) {
+            handleCommand({
+              command: data.command,
+              value: data.commandValue ?? undefined,
+              timestamp: data.commandTimestamp,
+            });
           }
-        } catch {}
-      };
-    } catch {}
-
-    // 5. Cloud Relay SSE listener (for cross-device / mobile phone -> laptop projection)
-    let relaySSE: EventSource | null = null;
-    let relayReconnectTimer: any = null;
-
-    const setupRelay = () => {
-      try {
-        if (relaySSE) relaySSE.close();
-        relaySSE = new EventSource(`${RELAY_URL}/sse`);
-        relaySSE.onmessage = (event) => {
-          try {
-            const sseData = JSON.parse(event.data);
-            if (sseData.event === 'message' && sseData.message) {
-              const msg = JSON.parse(sseData.message);
-              if (msg && msg.type === 'REMOTE_COMMAND' && msg.data) {
-                handleCommand(msg.data);
-              }
-            }
-          } catch {}
-        };
-        relaySSE.onerror = () => {
-          if (relayReconnectTimer) clearTimeout(relayReconnectTimer);
-          relayReconnectTimer = setTimeout(setupRelay, 2500);
-        };
-      } catch {}
-    };
-
-    setupRelay();
-
-    // Reconnect on tab regain focus or visibility change
-    const handleVisibility = () => {
-      if (document.visibilityState === 'visible') {
-        setupRelay();
+        }
+      },
+      (error) => {
+        handleFirestoreError(error, OperationType.GET, `sessions/${SESSION_DOC_ID}`);
       }
-    };
-    document.addEventListener('visibilitychange', handleVisibility);
-    window.addEventListener('focus', setupRelay);
+    );
 
     return () => {
       if (remoteBroadcastChannel) {
@@ -696,23 +664,20 @@ export function useRemoteCommands(
       }
       window.removeEventListener('storage', handleStorage);
       window.removeEventListener('rwa_remote_cmd', handleWindowEvent);
-      document.removeEventListener('visibilitychange', handleVisibility);
-      window.removeEventListener('focus', setupRelay);
-      if (relayReconnectTimer) clearTimeout(relayReconnectTimer);
-      if (sse) sse.close();
-      if (relaySSE) relaySSE.close();
+      unsubDoc();
     };
   }, [onCommand]);
 }
 
 // -----------------------------------------------------------------------------------------
-// Submissions with Automatic Netlify / Static Fallback (NEVER fails with "Error al enviar...")
+// Submissions with Direct Firestore Cloud Real-time Persistence
 // -----------------------------------------------------------------------------------------
 
 export async function submitForm1(name: string, email: string, amount: number) {
   const numAmount = Number(amount);
-  const fallbackEntry: Form1Entry = {
-    id: `f1_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+  const entryId = `f1_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+  const newEntry: Form1Entry = {
+    id: entryId,
     name: (name || 'Anónimo').trim(),
     email: (email || '').trim(),
     amount: isNaN(numAmount) ? 0 : numAmount,
@@ -720,71 +685,52 @@ export async function submitForm1(name: string, email: string, amount: number) {
     meetsMinimum: numAmount >= 10_000,
   };
 
-  // Try real Express backend first
-  try {
-    const res = await fetch('/api/submit-form1', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, email, amount: numAmount }),
-    });
-
-    const contentType = res.headers.get('content-type') || '';
-    if (res.ok && contentType.includes('application/json')) {
-      const data = await res.json();
-      return data;
-    }
-  } catch (err) {
-    console.warn('Backend /api/submit-form1 unreachable, activating resilient Netlify fallback', err);
-  }
-
-  // Graceful Netlify / Static Client-Side Fallback
+  // Immediate local update for zero-latency UI reaction
   const current = getLocalRawState();
-  current.form1.push(fallbackEntry);
+  current.form1.push(newEntry);
   current.lastUpdated = Date.now();
   saveLocalRawState(current);
+  publishEvent({ type: 'FORM1', data: newEntry });
 
-  publishEvent({ type: 'FORM1', data: fallbackEntry });
+  // Write directly to Firestore
+  try {
+    const docRef = doc(db, 'sessions', SESSION_DOC_ID, 'form1_submissions', entryId);
+    await setDoc(docRef, newEntry);
+  } catch (err) {
+    handleFirestoreError(err, OperationType.CREATE, `sessions/${SESSION_DOC_ID}/form1_submissions/${entryId}`);
+  }
 
-  return { success: true, entry: fallbackEntry };
+  return { success: true, entry: newEntry };
 }
 
 export async function submitForm2(name: string, email: string, tokens: number) {
   const numTokens = Number(tokens);
-  const fallbackEntry: Form2Entry = {
-    id: `f2_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+  const safeTokens = isNaN(numTokens) || numTokens <= 0 ? 10 : numTokens;
+  const entryId = `f2_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+  const newEntry: Form2Entry = {
+    id: entryId,
     name: (name || 'Inversor RWA').trim(),
     email: (email || '').trim(),
-    tokens: isNaN(numTokens) ? 10 : numTokens,
-    amount: (isNaN(numTokens) ? 10 : numTokens) * 10,
-    m2: +((isNaN(numTokens) ? 10 : numTokens) / 100).toFixed(2),
+    tokens: safeTokens,
+    amount: safeTokens * 10,
+    m2: +(safeTokens / 100).toFixed(2),
     timestamp: Date.now(),
   };
 
-  try {
-    const res = await fetch('/api/submit-form2', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, email, tokens: numTokens }),
-    });
-
-    const contentType = res.headers.get('content-type') || '';
-    if (res.ok && contentType.includes('application/json')) {
-      const data = await res.json();
-      return data;
-    }
-  } catch (err) {
-    console.warn('Backend /api/submit-form2 unreachable, activating resilient Netlify fallback', err);
-  }
-
-  // Netlify fallback
   const current = getLocalRawState();
-  current.form2.push(fallbackEntry);
+  current.form2.push(newEntry);
   current.lastUpdated = Date.now();
   saveLocalRawState(current);
+  publishEvent({ type: 'FORM2', data: newEntry });
 
-  publishEvent({ type: 'FORM2', data: fallbackEntry });
+  try {
+    const docRef = doc(db, 'sessions', SESSION_DOC_ID, 'form2_submissions', entryId);
+    await setDoc(docRef, newEntry);
+  } catch (err) {
+    handleFirestoreError(err, OperationType.CREATE, `sessions/${SESSION_DOC_ID}/form2_submissions/${entryId}`);
+  }
 
-  return { success: true, entry: fallbackEntry };
+  return { success: true, entry: newEntry };
 }
 
 export interface SurveyPayload {
@@ -804,8 +750,9 @@ export interface SurveyPayload {
 }
 
 export async function submitSurvey(payload: SurveyPayload) {
-  const fallbackEntry: SurveyEntry = {
-    id: `surv_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+  const entryId = `surv_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+  const newEntry: SurveyEntry = {
+    id: entryId,
     name: (payload.name || 'Asistente').trim(),
     email: (payload.email || '').trim(),
     phone: (payload.phone || '').trim(),
@@ -822,31 +769,20 @@ export async function submitSurvey(payload: SurveyPayload) {
     timestamp: Date.now(),
   };
 
-  try {
-    const res = await fetch('/api/submit-survey', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-
-    const contentType = res.headers.get('content-type') || '';
-    if (res.ok && contentType.includes('application/json')) {
-      const data = await res.json();
-      return data;
-    }
-  } catch (err) {
-    console.warn('Backend /api/submit-survey unreachable, activating resilient Netlify fallback', err);
-  }
-
-  // Netlify fallback
   const current = getLocalRawState();
-  current.surveys.push(fallbackEntry);
+  current.surveys.push(newEntry);
   current.lastUpdated = Date.now();
   saveLocalRawState(current);
+  publishEvent({ type: 'SURVEY', data: newEntry });
 
-  publishEvent({ type: 'SURVEY', data: fallbackEntry });
+  try {
+    const docRef = doc(db, 'sessions', SESSION_DOC_ID, 'survey_submissions', entryId);
+    await setDoc(docRef, newEntry);
+  } catch (err) {
+    handleFirestoreError(err, OperationType.CREATE, `sessions/${SESSION_DOC_ID}/survey_submissions/${entryId}`);
+  }
 
-  return { success: true, entry: fallbackEntry };
+  return { success: true, entry: newEntry };
 }
 
 export async function resetDatabase() {
@@ -859,20 +795,12 @@ export async function resetDatabase() {
     localStorage.removeItem('rwa_attendee_survey_done');
   } catch {}
 
-  try {
-    await fetch('/api/reset', { method: 'POST' });
-  } catch {
-    // Backend offline
-  }
-
   const cleanState: RawAppState = {
     form1: [],
     form2: [],
     surveys: [],
     lastUpdated: resetNow,
   };
-
-  // Permanently store clean state in localStorage so refresh/fallback gets 0
   saveLocalRawState(cleanState);
 
   // Broadcast to all open tabs and windows
@@ -880,48 +808,75 @@ export async function resetDatabase() {
     broadcastChannel?.postMessage({ type: 'RESET', data: cleanState });
   } catch {}
 
-  // Local window event for immediate in-component state reset
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent('rwa_state_reset'));
   }
 
-  publishEvent({ type: 'RESET', data: cleanState });
+  // Update Firestore session with reset timestamp and reset phase to 1
+  try {
+    const sessionDocRef = doc(db, 'sessions', SESSION_DOC_ID);
+    await setDoc(
+      sessionDocRef,
+      {
+        phase: 1,
+        command: 'setPhase',
+        commandValue: 1,
+        commandTimestamp: resetNow,
+        lastResetTimestamp: resetNow,
+        updatedAt: resetNow,
+      },
+      { merge: true }
+    );
 
-  // Reset slide presentation to phase 1
-  sendRemoteCommand('setPhase', 1);
+    // Delete existing documents in collections using batch
+    const batch = writeBatch(db);
+    const [f1Snap, f2Snap, survSnap] = await Promise.all([
+      getDocs(collection(db, 'sessions', SESSION_DOC_ID, 'form1_submissions')),
+      getDocs(collection(db, 'sessions', SESSION_DOC_ID, 'form2_submissions')),
+      getDocs(collection(db, 'sessions', SESSION_DOC_ID, 'survey_submissions')),
+    ]);
+
+    f1Snap.forEach((d) => batch.delete(d.ref));
+    f2Snap.forEach((d) => batch.delete(d.ref));
+    survSnap.forEach((d) => batch.delete(d.ref));
+    await batch.commit();
+  } catch (err) {
+    handleFirestoreError(err, OperationType.DELETE, `sessions/${SESSION_DOC_ID}`);
+  }
 
   return { success: true };
 }
 
 export async function seedDemoData() {
+  const now = Date.now();
   const demoForm1: Form1Entry[] = [
-    { id: 'f1_d1', name: 'Carlos Mendoza', email: 'carlos@demo.com', amount: 10000, timestamp: Date.now() - 60000, meetsMinimum: true },
-    { id: 'f1_d2', name: 'Mariana Silva', email: 'mariana@demo.com', amount: 1000, timestamp: Date.now() - 55000, meetsMinimum: false },
-    { id: 'f1_d3', name: 'Diego Torres', email: 'diego@demo.com', amount: 100, timestamp: Date.now() - 50000, meetsMinimum: false },
-    { id: 'f1_d4', name: 'Lucía Morales', email: 'lucia@demo.com', amount: 500, timestamp: Date.now() - 45000, meetsMinimum: false },
-    { id: 'f1_d5', name: 'Fernando Ruiz', email: 'fernando@demo.com', amount: 100, timestamp: Date.now() - 40000, meetsMinimum: false },
-    { id: 'f1_d6', name: 'Dra. Patricia León', email: 'patricia@demo.com', amount: 10000, timestamp: Date.now() - 35000, meetsMinimum: true },
-    { id: 'f1_d7', name: 'Andrés Gómez', email: 'andres@demo.com', amount: 1000, timestamp: Date.now() - 30000, meetsMinimum: false },
-    { id: 'f1_d8', name: 'Valeria Castro', email: 'valeria@demo.com', amount: 50, timestamp: Date.now() - 25000, meetsMinimum: false },
-    { id: 'f1_d9', name: 'Gabriel Pardo', email: 'gabriel@demo.com', amount: 250, timestamp: Date.now() - 20000, meetsMinimum: false },
-    { id: 'f1_d10', name: 'Camila Herrera', email: 'camila@demo.com', amount: 100, timestamp: Date.now() - 15000, meetsMinimum: false },
-    { id: 'f1_d11', name: 'Roberto Alvarado', email: 'roberto.a@demo.com', amount: 1000, timestamp: Date.now() - 10000, meetsMinimum: false },
-    { id: 'f1_d12', name: 'Sofía Navarro', email: 'sofia@demo.com', amount: 20, timestamp: Date.now() - 5000, meetsMinimum: false },
+    { id: 'f1_d1', name: 'Carlos Mendoza', email: 'carlos@demo.com', amount: 10000, timestamp: now - 60000, meetsMinimum: true },
+    { id: 'f1_d2', name: 'Mariana Silva', email: 'mariana@demo.com', amount: 1000, timestamp: now - 55000, meetsMinimum: false },
+    { id: 'f1_d3', name: 'Diego Torres', email: 'diego@demo.com', amount: 100, timestamp: now - 50000, meetsMinimum: false },
+    { id: 'f1_d4', name: 'Lucía Morales', email: 'lucia@demo.com', amount: 500, timestamp: now - 45000, meetsMinimum: false },
+    { id: 'f1_d5', name: 'Fernando Ruiz', email: 'fernando@demo.com', amount: 100, timestamp: now - 40000, meetsMinimum: false },
+    { id: 'f1_d6', name: 'Dra. Patricia León', email: 'patricia@demo.com', amount: 10000, timestamp: now - 35000, meetsMinimum: true },
+    { id: 'f1_d7', name: 'Andrés Gómez', email: 'andres@demo.com', amount: 1000, timestamp: now - 30000, meetsMinimum: false },
+    { id: 'f1_d8', name: 'Valeria Castro', email: 'valeria@demo.com', amount: 50, timestamp: now - 25000, meetsMinimum: false },
+    { id: 'f1_d9', name: 'Gabriel Pardo', email: 'gabriel@demo.com', amount: 250, timestamp: now - 20000, meetsMinimum: false },
+    { id: 'f1_d10', name: 'Camila Herrera', email: 'camila@demo.com', amount: 100, timestamp: now - 15000, meetsMinimum: false },
+    { id: 'f1_d11', name: 'Roberto Alvarado', email: 'roberto.a@demo.com', amount: 1000, timestamp: now - 10000, meetsMinimum: false },
+    { id: 'f1_d12', name: 'Sofía Navarro', email: 'sofia@demo.com', amount: 20, timestamp: now - 5000, meetsMinimum: false },
   ];
 
   const demoForm2: Form2Entry[] = [
-    { id: 'f2_d1', name: 'Mariana Silva', email: 'mariana@demo.com', tokens: 100, amount: 1000, m2: 1.0, timestamp: Date.now() - 40000 },
-    { id: 'f2_d2', name: 'Diego Torres', email: 'diego@demo.com', tokens: 50, amount: 500, m2: 0.5, timestamp: Date.now() - 35000 },
-    { id: 'f2_d3', name: 'Lucía Morales', email: 'lucia@demo.com', tokens: 500, amount: 5000, m2: 5.0, timestamp: Date.now() - 30000 },
-    { id: 'f2_d4', name: 'Fernando Ruiz', email: 'fernando@demo.com', tokens: 100, amount: 1000, m2: 1.0, timestamp: Date.now() - 28000 },
-    { id: 'f2_d5', name: 'Carlos Mendoza', email: 'carlos@demo.com', tokens: 1000, amount: 10000, m2: 10.0, timestamp: Date.now() - 25000 },
-    { id: 'f2_d6', name: 'Valeria Castro', email: 'valeria@demo.com', tokens: 10, amount: 100, m2: 0.1, timestamp: Date.now() - 22000 },
-    { id: 'f2_d7', name: 'Andrés Gómez', email: 'andres@demo.com', tokens: 250, amount: 2500, m2: 2.5, timestamp: Date.now() - 18000 },
-    { id: 'f2_d8', name: 'Gabriel Pardo', email: 'gabriel@demo.com', tokens: 30, amount: 300, m2: 0.3, timestamp: Date.now() - 15000 },
-    { id: 'f2_d9', name: 'Camila Herrera', email: 'camila@demo.com', tokens: 100, amount: 1000, m2: 1.0, timestamp: Date.now() - 12000 },
-    { id: 'f2_d10', name: 'Roberto Alvarado', email: 'roberto.a@demo.com', tokens: 500, amount: 5000, m2: 5.0, timestamp: Date.now() - 8000 },
-    { id: 'f2_d11', name: 'Sofía Navarro', email: 'sofia@demo.com', tokens: 5, amount: 50, m2: 0.05, timestamp: Date.now() - 5000 },
-    { id: 'f2_d12', name: 'Dra. Patricia León', email: 'patricia@demo.com', tokens: 800, amount: 8000, m2: 8.0, timestamp: Date.now() - 2000 },
+    { id: 'f2_d1', name: 'Mariana Silva', email: 'mariana@demo.com', tokens: 100, amount: 1000, m2: 1.0, timestamp: now - 40000 },
+    { id: 'f2_d2', name: 'Diego Torres', email: 'diego@demo.com', tokens: 50, amount: 500, m2: 0.5, timestamp: now - 35000 },
+    { id: 'f2_d3', name: 'Lucía Morales', email: 'lucia@demo.com', tokens: 500, amount: 5000, m2: 5.0, timestamp: now - 30000 },
+    { id: 'f2_d4', name: 'Fernando Ruiz', email: 'fernando@demo.com', tokens: 100, amount: 1000, m2: 1.0, timestamp: now - 28000 },
+    { id: 'f2_d5', name: 'Carlos Mendoza', email: 'carlos@demo.com', tokens: 1000, amount: 10000, m2: 10.0, timestamp: now - 25000 },
+    { id: 'f2_d6', name: 'Valeria Castro', email: 'valeria@demo.com', tokens: 10, amount: 100, m2: 0.1, timestamp: now - 22000 },
+    { id: 'f2_d7', name: 'Andrés Gómez', email: 'andres@demo.com', tokens: 250, amount: 2500, m2: 2.5, timestamp: now - 18000 },
+    { id: 'f2_d8', name: 'Gabriel Pardo', email: 'gabriel@demo.com', tokens: 30, amount: 300, m2: 0.3, timestamp: now - 15000 },
+    { id: 'f2_d9', name: 'Camila Herrera', email: 'camila@demo.com', tokens: 100, amount: 1000, m2: 1.0, timestamp: now - 12000 },
+    { id: 'f2_d10', name: 'Roberto Alvarado', email: 'roberto.a@demo.com', tokens: 500, amount: 5000, m2: 5.0, timestamp: now - 8000 },
+    { id: 'f2_d11', name: 'Sofía Navarro', email: 'sofia@demo.com', tokens: 5, amount: 50, m2: 0.05, timestamp: now - 5000 },
+    { id: 'f2_d12', name: 'Dra. Patricia León', email: 'patricia@demo.com', tokens: 800, amount: 8000, m2: 8.0, timestamp: now - 2000 },
   ];
 
   const demoSurveys: SurveyEntry[] = [
@@ -938,7 +893,7 @@ export async function seedDemoData() {
       ],
       comments:
         'Excelente fundamentación jurídica y constitucional. El enlace entre la doctrina de De Soto y los smart contracts fue revelador.',
-      timestamp: Date.now() - 35000,
+      timestamp: now - 35000,
     },
     {
       id: 'surv_d2',
@@ -953,7 +908,7 @@ export async function seedDemoData() {
       ],
       comments:
         'La dinámica en vivo con los teléfonos demostró empíricamente la falla del ticket tradicional. Muy pedagógico.',
-      timestamp: Date.now() - 30000,
+      timestamp: now - 30000,
     },
     {
       id: 'surv_d3',
@@ -968,7 +923,7 @@ export async function seedDemoData() {
       ],
       comments:
         'Muy claro cómo se resuelve el problema de la indivisión forzosa y la copropiedad mediante alícuotas digitales.',
-      timestamp: Date.now() - 20000,
+      timestamp: now - 20000,
     },
   ];
 
@@ -976,17 +931,33 @@ export async function seedDemoData() {
     form1: demoForm1,
     form2: demoForm2,
     surveys: demoSurveys,
-    lastUpdated: Date.now(),
+    lastUpdated: now,
   };
-
-  try {
-    await fetch('/api/seed-demo', { method: 'POST' });
-  } catch {
-    // Backend offline
-  }
-
   saveLocalRawState(seededState);
   publishEvent({ type: 'SEED_DEMO', data: seededState });
+
+  // Write demo data directly to Firestore
+  try {
+    const batch = writeBatch(db);
+    demoForm1.forEach((item) => {
+      const docRef = doc(db, 'sessions', SESSION_DOC_ID, 'form1_submissions', item.id);
+      batch.set(docRef, item);
+    });
+    demoForm2.forEach((item) => {
+      const docRef = doc(db, 'sessions', SESSION_DOC_ID, 'form2_submissions', item.id);
+      batch.set(docRef, item);
+    });
+    demoSurveys.forEach((item) => {
+      const docRef = doc(db, 'sessions', SESSION_DOC_ID, 'survey_submissions', item.id);
+      batch.set(docRef, item);
+    });
+    await batch.commit();
+
+    const sessionDocRef = doc(db, 'sessions', SESSION_DOC_ID);
+    await setDoc(sessionDocRef, { updatedAt: Date.now() }, { merge: true });
+  } catch (err) {
+    handleFirestoreError(err, OperationType.WRITE, `sessions/${SESSION_DOC_ID}`);
+  }
 
   return { success: true };
 }

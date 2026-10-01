@@ -1,0 +1,203 @@
+{
+  "entities": {
+    "Session": {
+      "title": "Session",
+      "description": "Represents the active conference presentation and real-time controller state",
+      "type": "object",
+      "properties": {
+        "phase": {
+          "type": "number",
+          "description": "Current active slide phase (1 to 5)"
+        },
+        "command": {
+          "type": "string",
+          "description": "Last remote command dispatched by presenter thumb controller",
+          "enum": ["prev", "next", "scrollUp", "scrollDown", "setPhase", "scrollTop", "none"]
+        },
+        "commandValue": {
+          "type": "number",
+          "description": "Optional numeric value for command (e.g. target phase)"
+        },
+        "commandTimestamp": {
+          "type": "number",
+          "description": "Timestamp when the remote command was issued"
+        },
+        "lastResetTimestamp": {
+          "type": "number",
+          "description": "Timestamp of the last session reset"
+        },
+        "updatedAt": {
+          "type": "number",
+          "description": "Timestamp when session document was last updated"
+        }
+      },
+      "required": ["phase", "command", "commandTimestamp", "updatedAt"]
+    },
+    "Form1Submission": {
+      "title": "Form1Submission",
+      "description": "Attendee entry for traditional investment capital simulation",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier of the submission",
+          "maxLength": 100
+        },
+        "name": {
+          "type": "string",
+          "description": "Name or pseudonym of the attendee",
+          "maxLength": 100
+        },
+        "email": {
+          "type": "string",
+          "description": "Email address of the attendee",
+          "maxLength": 150
+        },
+        "amount": {
+          "type": "number",
+          "description": "Proposed investment amount in USD"
+        },
+        "meetsMinimum": {
+          "type": "boolean",
+          "description": "Whether the amount reaches the traditional minimum ticket ($10k)"
+        },
+        "timestamp": {
+          "type": "number",
+          "description": "Client timestamp of the submission"
+        }
+      },
+      "required": ["id", "name", "amount", "meetsMinimum", "timestamp"]
+    },
+    "Form2Submission": {
+      "title": "Form2Submission",
+      "description": "Attendee entry for tokenized real estate co-ownership simulation",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier of the submission",
+          "maxLength": 100
+        },
+        "name": {
+          "type": "string",
+          "description": "Name or pseudonym of the attendee",
+          "maxLength": 100
+        },
+        "email": {
+          "type": "string",
+          "description": "Email address of the attendee",
+          "maxLength": 150
+        },
+        "tokens": {
+          "type": "number",
+          "description": "Number of RWA tokens subscribed ($10/token)"
+        },
+        "amount": {
+          "type": "number",
+          "description": "Total amount subscribed in USD"
+        },
+        "m2": {
+          "type": "number",
+          "description": "Square meters represented by the tokens"
+        },
+        "timestamp": {
+          "type": "number",
+          "description": "Client timestamp of the submission"
+        }
+      },
+      "required": ["id", "name", "tokens", "amount", "m2", "timestamp"]
+    },
+    "SurveySubmission": {
+      "title": "SurveySubmission",
+      "description": "Attendee qualitative and quantitative feedback at the end of the conference",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier of the survey",
+          "maxLength": 100
+        },
+        "name": {
+          "type": "string",
+          "description": "Attendee full name",
+          "maxLength": 100
+        },
+        "email": {
+          "type": "string",
+          "description": "Primary email address",
+          "maxLength": 150
+        },
+        "phone": {
+          "type": "string",
+          "description": "Contact phone number",
+          "maxLength": 50
+        },
+        "secondaryEmail": {
+          "type": "string",
+          "description": "Secondary contact email",
+          "maxLength": 150
+        },
+        "company": {
+          "type": "string",
+          "description": "Company or institutional affiliation",
+          "maxLength": 100
+        },
+        "industry": {
+          "type": "string",
+          "description": "Industry or profession sector",
+          "maxLength": 100
+        },
+        "location": {
+          "type": "string",
+          "description": "Attendee city or region",
+          "maxLength": 100
+        },
+        "freeNotes": {
+          "type": "string",
+          "description": "Additional free-form notes",
+          "maxLength": 500
+        },
+        "ratingQuality": {
+          "type": "number",
+          "description": "Content quality score (1 to 5)"
+        },
+        "ratingClarity": {
+          "type": "number",
+          "description": "Explanation clarity score (1 to 5)"
+        },
+        "npsScore": {
+          "type": "number",
+          "description": "Net Promoter Score rating (1 to 10)"
+        },
+        "comments": {
+          "type": "string",
+          "description": "General observations and questions",
+          "maxLength": 1000
+        },
+        "timestamp": {
+          "type": "number",
+          "description": "Submission timestamp"
+        }
+      },
+      "required": ["id", "name", "email", "ratingQuality", "ratingClarity", "npsScore", "timestamp"]
+    }
+  },
+  "firestore": {
+    "/sessions/{sessionId}": {
+      "schema": "Session",
+      "description": "Stores current presentation phase and presenter thumb remote commands"
+    },
+    "/sessions/{sessionId}/form1_submissions/{submissionId}": {
+      "schema": "Form1Submission",
+      "description": "Collection of attendee entries submitted during Phase 1 traditional capital round"
+    },
+    "/sessions/{sessionId}/form2_submissions/{submissionId}": {
+      "schema": "Form2Submission",
+      "description": "Collection of attendee entries submitted during Phase 3 tokenized co-ownership round"
+    },
+    "/sessions/{sessionId}/survey_submissions/{submissionId}": {
+      "schema": "SurveySubmission",
+      "description": "Collection of attendee survey feedbacks submitted during Phase 5 closing"
+    }
+  }
+}
