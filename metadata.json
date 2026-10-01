@@ -1,0 +1,8 @@
+{
+  "name": "CUATRO Roberto Hung | Proyecto Inmobiliario RH-RWA",
+  "description": "segunda Plataforma de conferencia sobre Tokenización RWA  por Roberto Hung Cavalieri.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

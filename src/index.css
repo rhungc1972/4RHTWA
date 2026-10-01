@@ -1,0 +1,79 @@
+@import "tailwindcss";
+
+:root {
+  --brand-orange: #FF6105;
+  --brand-black: #0A0A0A;
+  --brand-dark: #1A1A1A;
+  --brand-card: #FFFFFF;
+  --brand-card-hover: #F8F9FA;
+  --brand-border: #D1D5DB;
+  --brand-white: #FFFFFF;
+  --brand-gray: #EAECEF;
+  --brand-gray-surface: #DFE2E6;
+  --shadow-accent: 0 4px 20px rgba(255, 97, 5, 0.2);
+}
+
+@layer base {
+  body {
+    font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background-color: #EAECEF;
+    color: #0A0A0A;
+  }
+
+  .font-display {
+    font-family: 'Anton', 'Impact', sans-serif;
+    letter-spacing: 0.03em;
+  }
+
+  .font-heading {
+    font-family: 'Space Grotesk', 'Montserrat', sans-serif;
+  }
+
+  .font-mono-code {
+    font-family: 'JetBrains Mono', monospace;
+  }
+}
+
+/* Custom soundwave animation */
+@keyframes soundwave {
+  0%, 100% {
+    height: 4px;
+  }
+  50% {
+    height: 24px;
+  }
+}
+
+.soundwave-bar {
+  animation: soundwave 1.2s infinite ease-in-out;
+}
+
+/* Orange pulse for disruptions */
+@keyframes orangeGlow {
+  0%, 100% {
+    box-shadow: 0 0 10px rgba(255, 97, 5, 0.2), inset 0 0 10px rgba(255, 97, 5, 0.1);
+  }
+  50% {
+    box-shadow: 0 0 25px rgba(255, 97, 5, 0.5), inset 0 0 15px rgba(255, 97, 5, 0.25);
+  }
+}
+
+.glow-orange {
+  animation: orangeGlow 2.5s infinite ease-in-out;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #EAECEF;
+}
+::-webkit-scrollbar-thumb {
+  background: #9CA3AF;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #FF6105;
+}

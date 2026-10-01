@@ -1,0 +1,992 @@
+import { useEffect, useState, useCallback } from 'react';
+import { AppStateData } from '../types';
+
+export const INITIAL_STATE: AppStateData = {
+  raw: {
+    form1Count: 0,
+    form2Count: 0,
+    surveyCount: 0,
+    recentForm1: [],
+    recentForm2: [],
+    recentSurvey: [],
+  },
+  phase1_2: {
+    targetCapital: 1000000,
+    totalCollected: 0,
+    collectedPercent: 0,
+    traditionalCapitalCaptured: 0,
+    excludedCapitalBlocked: 0,
+    totalOfferedCapital: 0,
+    traditionalDeficit: 1000000,
+    respondentsCount: 0,
+    qualifiedCount: 0,
+    excludedCount: 0,
+    exclusionRate: 0,
+    distribution: {
+      tier10k: 0,
+      tier1k: 0,
+      tier100: 0,
+      tier1: 0,
+    },
+    traditionalInvestorsCount: 0,
+  },
+  phase3_4: {
+    targetTokens: 100000,
+    targetCapital: 1000000,
+    tokensSubscribed: 0,
+    usdSubscribed: 0,
+    m2Absorbed: 0,
+    totalM2Building: 1000,
+    coOwnersCount: 0,
+    fundingPercent: 0,
+    floors: Array.from({ length: 10 }, (_, i) => ({
+      floor: i + 1,
+      percent: 0,
+      isCompleted: false,
+      isCurrent: false,
+    })),
+  },
+  survey: {
+    totalResponses: 0,
+    avgQuality: 0,
+    avgClarity: 0,
+    avgNps: 0,
+    npsScoreIndex: 0,
+    promoters: 0,
+    passives: 0,
+    detractors: 0,
+    topicsRanking: [],
+    recentFeedback: [],
+  },
+  lastUpdated: Date.now(),
+};
+
+export interface Form1Entry {
+  id: string;
+  name: string;
+  email: string;
+  amount: number;
+  timestamp: number;
+  meetsMinimum: boolean;
+}
+
+export interface Form2Entry {
+  id: string;
+  name: string;
+  email: string;
+  tokens: number;
+  amount: number;
+  m2: number;
+  timestamp: number;
+}
+
+export interface SurveyEntry {
+  id: string;
+  name: string;
+  email: string;
+  phone?: string;
+  secondaryEmail?: string;
+  company?: string;
+  industry?: string;
+  location?: string;
+  freeNotes?: string;
+  ratingQuality: number;
+  ratingClarity: number;
+  npsScore: number;
+  selectedTopics: string[];
+  comments?: string;
+  timestamp: number;
+}
+
+export interface RawAppState {
+  form1: Form1Entry[];
+  form2: Form2Entry[];
+  surveys: SurveyEntry[];
+  lastUpdated: number;
+}
+
+const LOCAL_STORAGE_KEY = 'rh_rwa_persisted_state_v1';
+const RELAY_TOPIC = 'rh_rwa_live_conference_session';
+const RELAY_URL = `https://ntfy.sh/${RELAY_TOPIC}`;
+
+const TOPIC_CATALOG = [
+  'Contratos Inteligentes & Derecho Notarial / Registral',
+  'Tokenización de Créditos Privados & Deuda Corporativa',
+  'Marco Regulatorio & Fiscalidad Cripto en Iberoamérica',
+  'Vehículos Societarios, SPV y Fideicomisos para RWA',
+  'Gobernanza Descentralizada (DAO) y Derecho Corporativo',
+];
+
+// BroadcastChannel for instant same-browser / multi-tab synchronization
+const broadcastChannel: BroadcastChannel | null =
+  typeof window !== 'undefined' && 'BroadcastChannel' in window
+    ? new BroadcastChannel('rh_rwa_live_channel')
+    : null;
+
+// Local persistent store accessor
+export function getLocalRawState(): RawAppState {
+  if (typeof window === 'undefined') {
+    return { form1: [], form2: [], surveys: [], lastUpdated: Date.now() };
+  }
+  try {
+    const raw = localStorage.getItem(LOCAL_STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      return {
+        form1: Array.isArray(parsed.form1) ? parsed.form1 : [],
+        form2: Array.isArray(parsed.form2) ? parsed.form2 : [],
+        surveys: Array.isArray(parsed.surveys) ? parsed.surveys : [],
+        lastUpdated: parsed.lastUpdated || Date.now(),
+      };
+    }
+  } catch (err) {
+    console.warn('Error reading from localStorage:', err);
+  }
+  return { form1: [], form2: [], surveys: [], lastUpdated: Date.now() };
+}
+
+export function saveLocalRawState(rawState: RawAppState) {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(rawState));
+  } catch (err) {
+    console.warn('Error writing to localStorage:', err);
+  }
+}
+
+export function computeAppState(state: RawAppState): AppStateData {
+  const TARGET_CAPITAL = 1_000_000;
+  const TARGET_TOKENS = 100_000;
+  const MIN_TICKET = 10_000;
+
+  // Form 1 computations
+  const f1Count = state.form1.length;
+  const f1Total = state.form1.reduce((sum, item) => sum + item.amount, 0);
+  const qualifiedCount = state.form1.filter((i) => i.amount >= MIN_TICKET).length;
+  const excludedCount = state.form1.filter((i) => i.amount < MIN_TICKET).length;
+  const exclusionRate = f1Count > 0 ? (excludedCount / f1Count) * 100 : 0;
+  const traditionalCapitalCaptured = state.form1
+    .filter((i) => i.amount >= MIN_TICKET)
+    .reduce((sum, item) => sum + item.amount, 0);
+  const excludedCapitalBlocked = state.form1
+    .filter((i) => i.amount < MIN_TICKET)
+    .reduce((sum, item) => sum + item.amount, 0);
+  const totalOfferedCapital = f1Total;
+  const traditionalDeficit = Math.max(0, TARGET_CAPITAL - traditionalCapitalCaptured);
+  const collectedPercent = +((traditionalCapitalCaptured / TARGET_CAPITAL) * 100).toFixed(2);
+
+  const distribution = {
+    tier10k: state.form1.filter((i) => i.amount >= 10000).length,
+    tier1k: state.form1.filter((i) => i.amount >= 1000 && i.amount < 10000).length,
+    tier100: state.form1.filter((i) => i.amount >= 100 && i.amount < 1000).length,
+    tier1: state.form1.filter((i) => i.amount < 100).length,
+  };
+
+  // Form 2 computations
+  const f2Tokens = state.form2.reduce((sum, item) => sum + item.tokens, 0);
+  const f2Usd = f2Tokens * 10;
+  const f2M2 = +(f2Tokens / 100).toFixed(2);
+  const uniqueCoOwners = new Set(
+    state.form2.map((i) => (i.email ? i.email.toLowerCase().trim() : i.id))
+  ).size;
+  const fundingPercent = +((f2Tokens / TARGET_TOKENS) * 100).toFixed(2);
+
+  // 10 floors calculation
+  const floors = Array.from({ length: 10 }, (_, idx) => {
+    const floorNumber = idx + 1;
+    const tokensRequiredStart = idx * 10_000;
+    const tokensRequiredEnd = (idx + 1) * 10_000;
+    let percent = 0;
+    if (f2Tokens >= tokensRequiredEnd) {
+      percent = 100;
+    } else if (f2Tokens > tokensRequiredStart) {
+      percent = +(((f2Tokens - tokensRequiredStart) / 10_000) * 100).toFixed(1);
+    }
+    return {
+      floor: floorNumber,
+      percent,
+      isCompleted: percent >= 100,
+      isCurrent: percent > 0 && percent < 100,
+    };
+  });
+
+  // Survey computations
+  const totalSurveys = state.surveys.length;
+  const avgQuality =
+    totalSurveys > 0
+      ? +(state.surveys.reduce((s, item) => s + (item.ratingQuality || 5), 0) / totalSurveys).toFixed(2)
+      : 0;
+  const avgClarity =
+    totalSurveys > 0
+      ? +(state.surveys.reduce((s, item) => s + (item.ratingClarity || 5), 0) / totalSurveys).toFixed(2)
+      : 0;
+  const avgNps =
+    totalSurveys > 0
+      ? +(state.surveys.reduce((s, item) => s + (item.npsScore || 10), 0) / totalSurveys).toFixed(1)
+      : 0;
+
+  const promoters = state.surveys.filter((s) => s.npsScore >= 9).length;
+  const passives = state.surveys.filter((s) => s.npsScore >= 7 && s.npsScore <= 8).length;
+  const detractors = state.surveys.filter((s) => s.npsScore <= 6).length;
+  const npsScoreIndex =
+    totalSurveys > 0 ? Math.round(((promoters - detractors) / totalSurveys) * 100) : 0;
+
+  const topicCounts: Record<string, number> = {};
+  TOPIC_CATALOG.forEach((t) => (topicCounts[t] = 0));
+
+  state.surveys.forEach((entry) => {
+    if (Array.isArray(entry.selectedTopics)) {
+      entry.selectedTopics.forEach((topic) => {
+        topicCounts[topic] = (topicCounts[topic] || 0) + 1;
+      });
+    }
+  });
+
+  const topicsRanking = Object.entries(topicCounts)
+    .map(([topic, count]) => ({
+      topic,
+      count,
+      percentage: totalSurveys > 0 ? Math.round((count / totalSurveys) * 100) : 0,
+    }))
+    .sort((a, b) => b.count - a.count);
+
+  return {
+    raw: {
+      form1Count: f1Count,
+      form2Count: state.form2.length,
+      surveyCount: totalSurveys,
+      recentForm1: state.form1.slice(-15).reverse(),
+      recentForm2: state.form2.slice(-15).reverse(),
+      recentSurvey: state.surveys.slice(-15).reverse(),
+      allForm1: state.form1,
+      allForm2: state.form2,
+      allSurveys: state.surveys,
+    },
+    phase1_2: {
+      targetCapital: TARGET_CAPITAL,
+      totalCollected: traditionalCapitalCaptured,
+      collectedPercent,
+      traditionalCapitalCaptured,
+      excludedCapitalBlocked,
+      totalOfferedCapital,
+      traditionalDeficit,
+      respondentsCount: f1Count,
+      qualifiedCount,
+      excludedCount,
+      exclusionRate: +exclusionRate.toFixed(1),
+      distribution,
+      traditionalInvestorsCount: qualifiedCount,
+    },
+    roomStats: {
+      connectedAttendees: Math.max(1, Math.max(f1Count, state.form2.length, totalSurveys, 1)),
+      totalResponses: f1Count + state.form2.length + totalSurveys,
+    },
+    phase3_4: {
+      targetTokens: TARGET_TOKENS,
+      targetCapital: TARGET_CAPITAL,
+      tokensSubscribed: f2Tokens,
+      usdSubscribed: f2Usd,
+      m2Absorbed: f2M2,
+      totalM2Building: 1000,
+      coOwnersCount: uniqueCoOwners,
+      fundingPercent,
+      floors,
+    },
+    survey: {
+      totalResponses: totalSurveys,
+      avgQuality,
+      avgClarity,
+      avgNps,
+      npsScoreIndex,
+      promoters,
+      passives,
+      detractors,
+      topicsRanking,
+      recentFeedback: state.surveys
+        .slice(-30)
+        .reverse(),
+    },
+    lastUpdated: state.lastUpdated,
+  };
+}
+
+// Publish an event through both BroadcastChannel and the free cloud relay
+export function publishEvent(eventPayload: { type: string; data: unknown }) {
+  // 1. BroadcastChannel for same-origin tabs
+  try {
+    broadcastChannel?.postMessage(eventPayload);
+  } catch (err) {
+    console.warn('BroadcastChannel error:', err);
+  }
+
+  // 2. ntfy.sh free public relay for cross-device synchronization (Netlify phone -> Netlify laptop)
+  try {
+    fetch(RELAY_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(eventPayload),
+      mode: 'cors',
+    }).catch(() => {
+      // Non-blocking fire & forget
+    });
+  } catch {
+    // ignore
+  }
+}
+
+// Universal Hook that synchronizes state from Express backend OR Netlify static/cloud relay
+export function useRealtimeState() {
+  const [state, setState] = useState<AppStateData>(() => {
+    return computeAppState(getLocalRawState());
+  });
+  const [isConnected, setIsConnected] = useState<boolean>(true);
+  const [lastSyncTime, setLastSyncTime] = useState<Date>(new Date());
+
+  const applyRawUpdate = useCallback((updater: (prev: RawAppState) => RawAppState) => {
+    const current = getLocalRawState();
+    const next = updater(current);
+    saveLocalRawState(next);
+    const computed = computeAppState(next);
+    setState(computed);
+    setLastSyncTime(new Date());
+    return computed;
+  }, []);
+
+  const fetchBackendState = useCallback(async () => {
+    try {
+      const res = await fetch('/api/state');
+      const contentType = res.headers.get('content-type') || '';
+      if (res.ok && contentType.includes('application/json')) {
+        const data = await res.json();
+        setState(data);
+        setLastSyncTime(new Date());
+        setIsConnected(true);
+        return true;
+      }
+    } catch {
+      // Backend not running (e.g. Netlify static hosting)
+    }
+    // Fallback: sync from local storage
+    setState(computeAppState(getLocalRawState()));
+    setIsConnected(true);
+    return false;
+  }, []);
+
+  useEffect(() => {
+    fetchBackendState();
+
+    // 1. Listen on BroadcastChannel for instant local tab changes
+    const handleBroadcastMessage = (event: MessageEvent) => {
+      const payload = event.data;
+      if (!payload || !payload.type) return;
+
+      if (payload.type === 'FORM1') {
+        const entry = payload.data as Form1Entry;
+        const resetTs = Number(localStorage.getItem('rwa_session_reset_ts') || '0');
+        if (entry.timestamp && entry.timestamp < resetTs) return;
+        applyRawUpdate((prev) => {
+          if (prev.form1.some((e) => e.id === entry.id)) return prev;
+          return { ...prev, form1: [...prev.form1, entry], lastUpdated: Date.now() };
+        });
+      } else if (payload.type === 'FORM2') {
+        const entry = payload.data as Form2Entry;
+        const resetTs = Number(localStorage.getItem('rwa_session_reset_ts') || '0');
+        if (entry.timestamp && entry.timestamp < resetTs) return;
+        applyRawUpdate((prev) => {
+          if (prev.form2.some((e) => e.id === entry.id)) return prev;
+          return { ...prev, form2: [...prev.form2, entry], lastUpdated: Date.now() };
+        });
+      } else if (payload.type === 'SURVEY') {
+        const entry = payload.data as SurveyEntry;
+        const resetTs = Number(localStorage.getItem('rwa_session_reset_ts') || '0');
+        if (entry.timestamp && entry.timestamp < resetTs) return;
+        applyRawUpdate((prev) => {
+          if (prev.surveys.some((e) => e.id === entry.id)) return prev;
+          return { ...prev, surveys: [...prev.surveys, entry], lastUpdated: Date.now() };
+        });
+      } else if (payload.type === 'RESET') {
+        const resetNow = Date.now();
+        try {
+          localStorage.setItem('rwa_session_reset_ts', String(resetNow));
+        } catch {}
+        const cleanState: RawAppState = { form1: [], form2: [], surveys: [], lastUpdated: resetNow };
+        saveLocalRawState(cleanState);
+        setState(INITIAL_STATE);
+        setLastSyncTime(new Date());
+      } else if (payload.type === 'SEED_DEMO') {
+        if (payload.data) {
+          applyRawUpdate(() => payload.data as RawAppState);
+        }
+      } else if (payload.type === 'REMOTE_COMMAND' && payload.data) {
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('rwa_remote_cmd', { detail: payload.data }));
+        }
+      }
+    };
+
+    if (broadcastChannel) {
+      broadcastChannel.addEventListener('message', handleBroadcastMessage);
+    }
+
+    // Custom local reset listener for same-tab instant zeroing
+    const handleLocalReset = () => {
+      const cleanState: RawAppState = { form1: [], form2: [], surveys: [], lastUpdated: Date.now() };
+      saveLocalRawState(cleanState);
+      setState(INITIAL_STATE);
+      setLastSyncTime(new Date());
+    };
+    window.addEventListener('rwa_state_reset', handleLocalReset);
+
+    // Immediate re-sync when screen wakes up or app tab regains focus
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        fetchBackendState();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', fetchBackendState);
+    window.addEventListener('online', fetchBackendState);
+
+    // 2. Listen to Backend Server-Sent Events with auto-reconnect engine
+    let backendSSE: EventSource | null = null;
+    let reconnectTimeout: any = null;
+
+    const setupSSE = () => {
+      try {
+        if (backendSSE) {
+          backendSSE.close();
+        }
+        backendSSE = new EventSource('/api/events');
+
+        backendSSE.onopen = () => {
+          setIsConnected(true);
+        };
+
+        backendSSE.onmessage = (event) => {
+          try {
+            if (event.data === ': heartbeat' || event.data === 'heartbeat') {
+              setIsConnected(true);
+              setLastSyncTime(new Date());
+              return;
+            }
+            const data = JSON.parse(event.data);
+            if (data.type === 'remote_command') return; // Handled by command listener
+            setState(data);
+            setLastSyncTime(new Date());
+            setIsConnected(true);
+          } catch {
+            // ignore non-json
+          }
+        };
+
+        backendSSE.onerror = () => {
+          // Fall back to immediate polling and schedule reconnect
+          fetchBackendState();
+          if (reconnectTimeout) clearTimeout(reconnectTimeout);
+          reconnectTimeout = setTimeout(setupSSE, 3000);
+        };
+      } catch {
+        // SSE not supported
+      }
+    };
+
+    setupSSE();
+
+    // 3. Listen to Free Cloud Relay SSE (for Netlify cross-device sync)
+    // using ?since=now so historical messages from previous sessions are never replayed
+    let relaySSE: EventSource | null = null;
+    try {
+      relaySSE = new EventSource(`${RELAY_URL}/sse?since=now`);
+      relaySSE.onmessage = (event) => {
+        try {
+          const sseData = JSON.parse(event.data);
+          if (sseData.event === 'message' && sseData.message) {
+            const payload = JSON.parse(sseData.message);
+            if (payload && payload.type) {
+              handleBroadcastMessage({ data: payload } as MessageEvent);
+            }
+          }
+        } catch {
+          // ignore parsing error
+        }
+      };
+    } catch {
+      // relay fallback
+    }
+
+    // High-frequency polling (2.5s) to guarantee zero disconnection under any mobile OS condition
+    const interval = setInterval(fetchBackendState, 2500);
+
+    return () => {
+      clearInterval(interval);
+      if (reconnectTimeout) clearTimeout(reconnectTimeout);
+      if (broadcastChannel) {
+        broadcastChannel.removeEventListener('message', handleBroadcastMessage);
+      }
+      window.removeEventListener('rwa_state_reset', handleLocalReset);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', fetchBackendState);
+      window.removeEventListener('online', fetchBackendState);
+      if (backendSSE) {
+        backendSSE.close();
+      }
+      if (relaySSE) {
+        relaySSE.close();
+      }
+    };
+  }, [applyRawUpdate, fetchBackendState]);
+
+  return { state, isConnected, lastSyncTime, refresh: fetchBackendState };
+}
+
+// Dedicated remote channel for instantaneous low-latency thumb navigation
+const remoteBroadcastChannel: BroadcastChannel | null =
+  typeof window !== 'undefined' && 'BroadcastChannel' in window
+    ? new BroadcastChannel('rh_rwa_remote_controller_channel')
+    : null;
+
+export interface RemoteCommandPayload {
+  command: 'prev' | 'next' | 'scrollUp' | 'scrollDown' | 'setPhase' | 'scrollTop';
+  value?: number;
+  timestamp: number;
+}
+
+export function sendRemoteCommand(command: RemoteCommandPayload['command'], value?: number) {
+  const payload: RemoteCommandPayload = {
+    command,
+    value,
+    timestamp: Date.now(),
+  };
+
+  // 1. BroadcastChannel (0ms latency for same-browser tabs)
+  try {
+    remoteBroadcastChannel?.postMessage(payload);
+  } catch {}
+
+  // 2. LocalStorage trigger (instant fallback)
+  try {
+    localStorage.setItem('rh_rwa_remote_cmd', JSON.stringify({ ...payload, _rand: Math.random() }));
+  } catch {}
+
+  // 3. Backend REST endpoint -> SSE
+  try {
+    fetch('/api/remote/command', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    }).catch(() => {});
+  } catch {}
+
+  // 4. Free cloud relay for cross-network (Netlify)
+  publishEvent({ type: 'REMOTE_COMMAND', data: payload });
+
+  // 5. In-window dispatch for immediate local reaction
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('rwa_remote_cmd', { detail: payload }));
+  }
+}
+
+export function useRemoteCommands(
+  onCommand: (command: RemoteCommandPayload['command'], value?: number) => void
+) {
+  useEffect(() => {
+    // Deduplication set for commands received across multi-transport pathways
+    const processedCommands = new Set<string>();
+
+    const handleCommand = (payload: RemoteCommandPayload) => {
+      if (!payload || !payload.command) return;
+      const key = `${payload.command}_${payload.value ?? ''}_${payload.timestamp}`;
+      if (processedCommands.has(key)) return;
+      processedCommands.add(key);
+
+      // Keep cache size bounded
+      if (processedCommands.size > 80) {
+        const first = processedCommands.values().next().value;
+        if (first) processedCommands.delete(first);
+      }
+
+      onCommand(payload.command, payload.value);
+    };
+
+    // 1. BroadcastChannel listener (same browser multi-tab)
+    const handleBcMessage = (event: MessageEvent) => {
+      if (event.data && event.data.command) {
+        handleCommand(event.data);
+      }
+    };
+
+    // 2. Storage event listener (same origin tabs)
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key === 'rh_rwa_remote_cmd' && event.newValue) {
+        try {
+          const parsed = JSON.parse(event.newValue);
+          handleCommand(parsed);
+        } catch {}
+      }
+    };
+
+    // 3. Custom window event listener (dispatched by useRealtimeState cloud SSE)
+    const handleWindowEvent = (e: Event) => {
+      const custom = e as CustomEvent<RemoteCommandPayload>;
+      if (custom.detail) {
+        handleCommand(custom.detail);
+      }
+    };
+
+    if (remoteBroadcastChannel) {
+      remoteBroadcastChannel.addEventListener('message', handleBcMessage);
+    }
+    window.addEventListener('storage', handleStorage);
+    window.addEventListener('rwa_remote_cmd', handleWindowEvent);
+
+    // 4. Express Backend SSE listener
+    let sse: EventSource | null = null;
+    try {
+      sse = new EventSource('/api/events');
+      sse.onmessage = (e) => {
+        try {
+          const parsed = JSON.parse(e.data);
+          if (parsed && parsed.type === 'remote_command') {
+            handleCommand(parsed);
+          }
+        } catch {}
+      };
+    } catch {}
+
+    // 5. Cloud Relay SSE listener (for cross-device / mobile phone -> laptop projection)
+    let relaySSE: EventSource | null = null;
+    let relayReconnectTimer: any = null;
+
+    const setupRelay = () => {
+      try {
+        if (relaySSE) relaySSE.close();
+        relaySSE = new EventSource(`${RELAY_URL}/sse`);
+        relaySSE.onmessage = (event) => {
+          try {
+            const sseData = JSON.parse(event.data);
+            if (sseData.event === 'message' && sseData.message) {
+              const msg = JSON.parse(sseData.message);
+              if (msg && msg.type === 'REMOTE_COMMAND' && msg.data) {
+                handleCommand(msg.data);
+              }
+            }
+          } catch {}
+        };
+        relaySSE.onerror = () => {
+          if (relayReconnectTimer) clearTimeout(relayReconnectTimer);
+          relayReconnectTimer = setTimeout(setupRelay, 2500);
+        };
+      } catch {}
+    };
+
+    setupRelay();
+
+    // Reconnect on tab regain focus or visibility change
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        setupRelay();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    window.addEventListener('focus', setupRelay);
+
+    return () => {
+      if (remoteBroadcastChannel) {
+        remoteBroadcastChannel.removeEventListener('message', handleBcMessage);
+      }
+      window.removeEventListener('storage', handleStorage);
+      window.removeEventListener('rwa_remote_cmd', handleWindowEvent);
+      document.removeEventListener('visibilitychange', handleVisibility);
+      window.removeEventListener('focus', setupRelay);
+      if (relayReconnectTimer) clearTimeout(relayReconnectTimer);
+      if (sse) sse.close();
+      if (relaySSE) relaySSE.close();
+    };
+  }, [onCommand]);
+}
+
+// -----------------------------------------------------------------------------------------
+// Submissions with Automatic Netlify / Static Fallback (NEVER fails with "Error al enviar...")
+// -----------------------------------------------------------------------------------------
+
+export async function submitForm1(name: string, email: string, amount: number) {
+  const numAmount = Number(amount);
+  const fallbackEntry: Form1Entry = {
+    id: `f1_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+    name: (name || 'Anónimo').trim(),
+    email: (email || '').trim(),
+    amount: isNaN(numAmount) ? 0 : numAmount,
+    timestamp: Date.now(),
+    meetsMinimum: numAmount >= 10_000,
+  };
+
+  // Try real Express backend first
+  try {
+    const res = await fetch('/api/submit-form1', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, email, amount: numAmount }),
+    });
+
+    const contentType = res.headers.get('content-type') || '';
+    if (res.ok && contentType.includes('application/json')) {
+      const data = await res.json();
+      return data;
+    }
+  } catch (err) {
+    console.warn('Backend /api/submit-form1 unreachable, activating resilient Netlify fallback', err);
+  }
+
+  // Graceful Netlify / Static Client-Side Fallback
+  const current = getLocalRawState();
+  current.form1.push(fallbackEntry);
+  current.lastUpdated = Date.now();
+  saveLocalRawState(current);
+
+  publishEvent({ type: 'FORM1', data: fallbackEntry });
+
+  return { success: true, entry: fallbackEntry };
+}
+
+export async function submitForm2(name: string, email: string, tokens: number) {
+  const numTokens = Number(tokens);
+  const fallbackEntry: Form2Entry = {
+    id: `f2_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+    name: (name || 'Inversor RWA').trim(),
+    email: (email || '').trim(),
+    tokens: isNaN(numTokens) ? 10 : numTokens,
+    amount: (isNaN(numTokens) ? 10 : numTokens) * 10,
+    m2: +((isNaN(numTokens) ? 10 : numTokens) / 100).toFixed(2),
+    timestamp: Date.now(),
+  };
+
+  try {
+    const res = await fetch('/api/submit-form2', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, email, tokens: numTokens }),
+    });
+
+    const contentType = res.headers.get('content-type') || '';
+    if (res.ok && contentType.includes('application/json')) {
+      const data = await res.json();
+      return data;
+    }
+  } catch (err) {
+    console.warn('Backend /api/submit-form2 unreachable, activating resilient Netlify fallback', err);
+  }
+
+  // Netlify fallback
+  const current = getLocalRawState();
+  current.form2.push(fallbackEntry);
+  current.lastUpdated = Date.now();
+  saveLocalRawState(current);
+
+  publishEvent({ type: 'FORM2', data: fallbackEntry });
+
+  return { success: true, entry: fallbackEntry };
+}
+
+export interface SurveyPayload {
+  name: string;
+  email: string;
+  phone?: string;
+  secondaryEmail?: string;
+  company?: string;
+  industry?: string;
+  location?: string;
+  freeNotes?: string;
+  ratingQuality: number;
+  ratingClarity: number;
+  npsScore: number;
+  selectedTopics: string[];
+  comments?: string;
+}
+
+export async function submitSurvey(payload: SurveyPayload) {
+  const fallbackEntry: SurveyEntry = {
+    id: `surv_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+    name: (payload.name || 'Asistente').trim(),
+    email: (payload.email || '').trim(),
+    phone: (payload.phone || '').trim(),
+    secondaryEmail: (payload.secondaryEmail || '').trim(),
+    company: (payload.company || '').trim(),
+    industry: (payload.industry || '').trim(),
+    location: (payload.location || '').trim(),
+    freeNotes: (payload.freeNotes || '').trim(),
+    ratingQuality: payload.ratingQuality || 5,
+    ratingClarity: payload.ratingClarity || 5,
+    npsScore: payload.npsScore ?? 10,
+    selectedTopics: Array.isArray(payload.selectedTopics) ? payload.selectedTopics : [],
+    comments: (payload.comments || '').trim(),
+    timestamp: Date.now(),
+  };
+
+  try {
+    const res = await fetch('/api/submit-survey', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+
+    const contentType = res.headers.get('content-type') || '';
+    if (res.ok && contentType.includes('application/json')) {
+      const data = await res.json();
+      return data;
+    }
+  } catch (err) {
+    console.warn('Backend /api/submit-survey unreachable, activating resilient Netlify fallback', err);
+  }
+
+  // Netlify fallback
+  const current = getLocalRawState();
+  current.surveys.push(fallbackEntry);
+  current.lastUpdated = Date.now();
+  saveLocalRawState(current);
+
+  publishEvent({ type: 'SURVEY', data: fallbackEntry });
+
+  return { success: true, entry: fallbackEntry };
+}
+
+export async function resetDatabase() {
+  const resetNow = Date.now();
+
+  try {
+    localStorage.setItem('rwa_session_reset_ts', String(resetNow));
+    localStorage.removeItem('rwa_attendee_form1_done');
+    localStorage.removeItem('rwa_attendee_form2_done');
+    localStorage.removeItem('rwa_attendee_survey_done');
+  } catch {}
+
+  try {
+    await fetch('/api/reset', { method: 'POST' });
+  } catch {
+    // Backend offline
+  }
+
+  const cleanState: RawAppState = {
+    form1: [],
+    form2: [],
+    surveys: [],
+    lastUpdated: resetNow,
+  };
+
+  // Permanently store clean state in localStorage so refresh/fallback gets 0
+  saveLocalRawState(cleanState);
+
+  // Broadcast to all open tabs and windows
+  try {
+    broadcastChannel?.postMessage({ type: 'RESET', data: cleanState });
+  } catch {}
+
+  // Local window event for immediate in-component state reset
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('rwa_state_reset'));
+  }
+
+  publishEvent({ type: 'RESET', data: cleanState });
+
+  // Reset slide presentation to phase 1
+  sendRemoteCommand('setPhase', 1);
+
+  return { success: true };
+}
+
+export async function seedDemoData() {
+  const demoForm1: Form1Entry[] = [
+    { id: 'f1_d1', name: 'Carlos Mendoza', email: 'carlos@demo.com', amount: 10000, timestamp: Date.now() - 60000, meetsMinimum: true },
+    { id: 'f1_d2', name: 'Mariana Silva', email: 'mariana@demo.com', amount: 1000, timestamp: Date.now() - 55000, meetsMinimum: false },
+    { id: 'f1_d3', name: 'Diego Torres', email: 'diego@demo.com', amount: 100, timestamp: Date.now() - 50000, meetsMinimum: false },
+    { id: 'f1_d4', name: 'Lucía Morales', email: 'lucia@demo.com', amount: 500, timestamp: Date.now() - 45000, meetsMinimum: false },
+    { id: 'f1_d5', name: 'Fernando Ruiz', email: 'fernando@demo.com', amount: 100, timestamp: Date.now() - 40000, meetsMinimum: false },
+    { id: 'f1_d6', name: 'Dra. Patricia León', email: 'patricia@demo.com', amount: 10000, timestamp: Date.now() - 35000, meetsMinimum: true },
+    { id: 'f1_d7', name: 'Andrés Gómez', email: 'andres@demo.com', amount: 1000, timestamp: Date.now() - 30000, meetsMinimum: false },
+    { id: 'f1_d8', name: 'Valeria Castro', email: 'valeria@demo.com', amount: 50, timestamp: Date.now() - 25000, meetsMinimum: false },
+    { id: 'f1_d9', name: 'Gabriel Pardo', email: 'gabriel@demo.com', amount: 250, timestamp: Date.now() - 20000, meetsMinimum: false },
+    { id: 'f1_d10', name: 'Camila Herrera', email: 'camila@demo.com', amount: 100, timestamp: Date.now() - 15000, meetsMinimum: false },
+    { id: 'f1_d11', name: 'Roberto Alvarado', email: 'roberto.a@demo.com', amount: 1000, timestamp: Date.now() - 10000, meetsMinimum: false },
+    { id: 'f1_d12', name: 'Sofía Navarro', email: 'sofia@demo.com', amount: 20, timestamp: Date.now() - 5000, meetsMinimum: false },
+  ];
+
+  const demoForm2: Form2Entry[] = [
+    { id: 'f2_d1', name: 'Mariana Silva', email: 'mariana@demo.com', tokens: 100, amount: 1000, m2: 1.0, timestamp: Date.now() - 40000 },
+    { id: 'f2_d2', name: 'Diego Torres', email: 'diego@demo.com', tokens: 50, amount: 500, m2: 0.5, timestamp: Date.now() - 35000 },
+    { id: 'f2_d3', name: 'Lucía Morales', email: 'lucia@demo.com', tokens: 500, amount: 5000, m2: 5.0, timestamp: Date.now() - 30000 },
+    { id: 'f2_d4', name: 'Fernando Ruiz', email: 'fernando@demo.com', tokens: 100, amount: 1000, m2: 1.0, timestamp: Date.now() - 28000 },
+    { id: 'f2_d5', name: 'Carlos Mendoza', email: 'carlos@demo.com', tokens: 1000, amount: 10000, m2: 10.0, timestamp: Date.now() - 25000 },
+    { id: 'f2_d6', name: 'Valeria Castro', email: 'valeria@demo.com', tokens: 10, amount: 100, m2: 0.1, timestamp: Date.now() - 22000 },
+    { id: 'f2_d7', name: 'Andrés Gómez', email: 'andres@demo.com', tokens: 250, amount: 2500, m2: 2.5, timestamp: Date.now() - 18000 },
+    { id: 'f2_d8', name: 'Gabriel Pardo', email: 'gabriel@demo.com', tokens: 30, amount: 300, m2: 0.3, timestamp: Date.now() - 15000 },
+    { id: 'f2_d9', name: 'Camila Herrera', email: 'camila@demo.com', tokens: 100, amount: 1000, m2: 1.0, timestamp: Date.now() - 12000 },
+    { id: 'f2_d10', name: 'Roberto Alvarado', email: 'roberto.a@demo.com', tokens: 500, amount: 5000, m2: 5.0, timestamp: Date.now() - 8000 },
+    { id: 'f2_d11', name: 'Sofía Navarro', email: 'sofia@demo.com', tokens: 5, amount: 50, m2: 0.05, timestamp: Date.now() - 5000 },
+    { id: 'f2_d12', name: 'Dra. Patricia León', email: 'patricia@demo.com', tokens: 800, amount: 8000, m2: 8.0, timestamp: Date.now() - 2000 },
+  ];
+
+  const demoSurveys: SurveyEntry[] = [
+    {
+      id: 'surv_d1',
+      name: 'Dra. Patricia León',
+      email: 'patricia@demo.com',
+      ratingQuality: 5,
+      ratingClarity: 5,
+      npsScore: 10,
+      selectedTopics: [
+        'Vehículos Societarios, SPV y Fideicomisos para RWA',
+        'Contratos Inteligentes & Derecho Notarial / Registral',
+      ],
+      comments:
+        'Excelente fundamentación jurídica y constitucional. El enlace entre la doctrina de De Soto y los smart contracts fue revelador.',
+      timestamp: Date.now() - 35000,
+    },
+    {
+      id: 'surv_d2',
+      name: 'Carlos Mendoza',
+      email: 'carlos@demo.com',
+      ratingQuality: 5,
+      ratingClarity: 5,
+      npsScore: 10,
+      selectedTopics: [
+        'Tokenización de Créditos Privados & Deuda Corporativa',
+        'Marco Regulatorio & Fiscalidad Cripto en Iberoamérica',
+      ],
+      comments:
+        'La dinámica en vivo con los teléfonos demostró empíricamente la falla del ticket tradicional. Muy pedagógico.',
+      timestamp: Date.now() - 30000,
+    },
+    {
+      id: 'surv_d3',
+      name: 'Mariana Silva',
+      email: 'mariana@demo.com',
+      ratingQuality: 5,
+      ratingClarity: 5,
+      npsScore: 10,
+      selectedTopics: [
+        'Gobernanza Descentralizada (DAO) y Derecho Corporativo',
+        'Contratos Inteligentes & Derecho Notarial / Registral',
+      ],
+      comments:
+        'Muy claro cómo se resuelve el problema de la indivisión forzosa y la copropiedad mediante alícuotas digitales.',
+      timestamp: Date.now() - 20000,
+    },
+  ];
+
+  const seededState: RawAppState = {
+    form1: demoForm1,
+    form2: demoForm2,
+    surveys: demoSurveys,
+    lastUpdated: Date.now(),
+  };
+
+  try {
+    await fetch('/api/seed-demo', { method: 'POST' });
+  } catch {
+    // Backend offline
+  }
+
+  saveLocalRawState(seededState);
+  publishEvent({ type: 'SEED_DEMO', data: seededState });
+
+  return { success: true };
+}
