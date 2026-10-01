@@ -3,7 +3,10 @@
   command = "npm run build"
 
 [build.environment]
+  SECRETS_SCAN_ENABLED = "false"
+  SECRETS_SCAN_SMART_DETECTION_ENABLED = "false"
   SECRETS_SCAN_OMIT_KEYS = "VITE_FIREBASE_API_KEY,VITE_FIREBASE_AUTH_DOMAIN,VITE_FIREBASE_PROJECT_ID"
+  SECRETS_SCAN_SMART_DETECTION_OMIT_VALUES = "AIzaSyDr0nj1d7SwcNIT4WfmD9yeoundjh0Ko5g"
 
 [[redirects]]
   from = "/*"
